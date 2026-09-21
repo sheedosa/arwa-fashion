@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import { LockSimple } from '@phosphor-icons/react'
 import { useI18n, useNm } from '../../lib/i18n'
 import { useStore } from '../../store/useStore'
@@ -42,23 +43,24 @@ export function ReconciliationScreen() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }} data-screen-label="Reconciliation">
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
         <h3 style={{ margin: 0 }}>{t.recon}</h3>
-        <span className="text-muted" style={{ fontSize: 14 }}>{nm(branchInfo.name)} · {td}</span>
+        <span className="text-muted" style={{ fontSize: 'var(--fs-meta)' }}>{nm(branchInfo.name)} · {td}</span>
       </div>
       {dayClosed && (
         <Card className="elev-sm" style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <LockSimple style={{ fontSize: 22, color: 'var(--color-accent)' }} /><span>{t.dayClosedMsg}</span>
+          <LockSimple size={22} style={{ color: 'var(--color-accent)', flex: 'none' }} /><span>{t.dayClosedMsg}</span>
         </Card>
       )}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(340px,1fr))', gap: 14 }}>
+      {/* min(340px,100%) — the fixed 340px floor overflowed a 327px phone column */}
+      <div className="grid-auto" style={{ '--grid-min': '340px' } as CSSProperties}>
         <Card style={{ gap: 8, padding: '18px 20px' }}>
           <span className="card-kicker">USD $</span>
           <Row label={t.openFloat} value={fmtUsd(branchInfo.openingFloatUsd)} />
           <Row label={t.cashSales} value={fmtUsd(cashUsd)} />
           <Row label={t.expected} value={fmtUsd(expUsd)} bold />
           <Field label={t.counted}>
-            <Input style={{ direction: 'ltr' }} value={cnt.usd} onChange={(e) => setCashCounted(branch, 'usd', e.target.value)} disabled={dayClosed} />
+            <Input kind="money" style={{ fontSize: 'var(--fs-num)' }} value={cnt.usd} onChange={(e) => setCashCounted(branch, 'usd', e.target.value)} disabled={dayClosed} />
           </Field>
           <Row label={t.variance} value={varStr(varUsd, fmtUsd)} color={varColor(varUsd)} />
         </Card>
@@ -68,16 +70,16 @@ export function ReconciliationScreen() {
           <Row label={t.cashSales} value={fmtLyd(cashLyd, lang)} />
           <Row label={t.expected} value={fmtLyd(expLyd, lang)} bold />
           <Field label={t.counted}>
-            <Input style={{ direction: 'ltr' }} value={cnt.lyd} onChange={(e) => setCashCounted(branch, 'lyd', e.target.value)} disabled={dayClosed} />
+            <Input kind="money" style={{ fontSize: 'var(--fs-num)' }} value={cnt.lyd} onChange={(e) => setCashCounted(branch, 'lyd', e.target.value)} disabled={dayClosed} />
           </Field>
           <Row label={t.variance} value={varStr(varLyd, (n) => fmtLyd(n, lang))} color={varColor(varLyd)} />
         </Card>
       </div>
-      <span className="text-muted" style={{ fontSize: 13.5 }}>
+      <span className="text-muted" style={{ fontSize: 'var(--fs-meta)' }}>
         {(lang === 'ar' ? 'المتوقع = رصيد الافتتاح + المبيعات النقدية − الباقي المدفوع، لكل عملة على حدة · ' : 'Expected = opening float + cash sales − change given, per currency · ')}
         {todaysSales.length} {lang === 'ar' ? 'فاتورة اليوم بهذا الفرع' : 'receipts today at this branch'}
       </span>
-      <Button variant="primary" style={{ alignSelf: 'flex-start', minHeight: 42 }} onClick={close} disabled={dayClosed}>
+      <Button variant="primary" style={{ alignSelf: 'flex-start', minHeight: 46 }} onClick={close} disabled={dayClosed}>
         <LockSimple />{t.closeDay}
       </Button>
     </div>
@@ -86,7 +88,7 @@ export function ReconciliationScreen() {
 
 function Row({ label, value, bold, color }: { label: string; value: string; bold?: boolean; color?: string }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14.5, fontWeight: bold ? 500 : 400 }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 'var(--fs-body)', fontWeight: bold ? 500 : 400 }}>
       <span className={color ? undefined : 'text-muted'}>{label}</span>
       <span style={{ color }}>{value}</span>
     </div>

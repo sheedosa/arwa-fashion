@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { DownloadSimple, UserPlus, WhatsappLogo, X } from '@phosphor-icons/react'
 import { useI18n } from '../../lib/i18n'
 import { useStore } from '../../store/useStore'
+import { useIsPhone } from '../../lib/useMediaQuery'
 import { fmtUsd } from '../../lib/currency'
 import { saleTotal } from '../../lib/calc'
 import { productName } from '../../lib/variantDisplay'
@@ -9,9 +10,12 @@ import { exportCsv } from '../../lib/csv'
 import { Field, Input } from '../../components/ui/Field'
 import { Button } from '../../components/ui/Button'
 import { Card, CardKicker } from '../../components/ui/Card'
+import { DataTable, type Column } from '../../components/ui/DataTable'
+import type { Customer } from '../../lib/types'
 
 export function CustomersScreen() {
   const { t, lang } = useI18n()
+  const isPhone = useIsPhone()
   const customers = useStore((s) => s.customers)
   const sales = useStore((s) => s.sales)
   const products = useStore((s) => s.products)
@@ -32,11 +36,15 @@ export function CustomersScreen() {
   const detail = openId != null ? customers.find((c) => c.id === openId) : null
   const history = detail ? sales.filter((s) => s.customerId === detail.id) : []
 
-  const add = () => {
-    addCustomer(phone, name)
-    flash(t.custAdded)
-    setPhone('+218 9'); setName('')
-  }
+  const add = () => { addCustomer(phone, name); flash(t.custAdded); setPhone('+218 9'); setName('') }
+
+  const columns: Column<Customer>[] = [
+    { key: 'name', header: t.name, role: 'title', cell: (c) => c.name },
+    { key: 'phone', header: t.phone, role: 'meta', ltr: true, tdClassName: 'text-muted', cell: (c) => c.phone },
+    { key: 'points', header: t.points, cell: (c) => c.points },
+    { key: 'last', header: t.lastBuy, tdClassName: 'text-muted', cell: (c) => c.lastPurchaseDate || '—' },
+    { key: 'open', header: '', role: 'action', cell: (c) => <Button variant="ghost" onClick={() => setOpenId(c.id)}>{t.choose}</Button> },
+  ]
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }} data-screen-label="Customers">
@@ -44,57 +52,44 @@ export function CustomersScreen() {
       <Card style={{ gap: 10 }}>
         <span className="card-kicker">{t.custNew}</span>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'end' }}>
-          <Field label={t.phone} style={{ width: 190 }}><Input style={{ direction: 'ltr' }} value={phone} onChange={(e) => setPhone(e.target.value)} /></Field>
-          <Field label={t.name} style={{ flex: 1, minWidth: 180 }}><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
+          <Field label={t.phone} style={{ flex: '1 1 190px' }}><Input kind="tel" value={phone} onChange={(e) => setPhone(e.target.value)} /></Field>
+          <Field label={t.name} style={{ flex: '2 1 180px' }}><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
           <Button variant="primary" onClick={add} disabled={cannotAdd}><UserPlus />{t.addCust}</Button>
         </div>
       </Card>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <Input style={{ maxWidth: 300 }} placeholder={t.search} value={query} onChange={(e) => setQuery(e.target.value)} />
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <Input kind="search" style={{ flex: '1 1 200px', maxWidth: 300 }} placeholder={t.search} value={query} onChange={(e) => setQuery(e.target.value)} />
         <Button variant="secondary" onClick={() => exportCsv('customers.csv', ['Name', 'Phone', 'Points', 'Last purchase'], customers.map((c) => [c.name, c.phone, c.points, c.lastPurchaseDate || '—']))}>
           <DownloadSimple />{t.export}
         </Button>
       </div>
-      <Card style={{ padding: '6px 14px' }}>
-        <table className="table">
-          <thead><tr><th>{t.name}</th><th>{t.phone}</th><th>{t.points}</th><th>{t.lastBuy}</th><th></th></tr></thead>
-          <tbody>
-            {rows.map((c) => (
-              <tr key={c.id}>
-                <td>{c.name}</td>
-                <td className="ltr-cell text-muted" style={{ fontSize: 14.5 }}>{c.phone}</td>
-                <td>{c.points}</td>
-                <td className="text-muted" style={{ fontSize: 14 }}>{c.lastPurchaseDate || '—'}</td>
-                <td><Button variant="ghost" style={{ fontSize: 14 }} onClick={() => setOpenId(c.id)}>{t.choose}</Button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <Card style={{ padding: isPhone ? 0 : '6px 14px', background: isPhone ? 'transparent' : undefined }}>
+        <DataTable rows={rows} columns={columns} rowKey={(c) => String(c.id)} />
       </Card>
       {detail && (
         <Card className="elev-md" style={{ gap: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div>
-              <div style={{ fontSize: 18.5, fontWeight: 500 }}>{detail.name}</div>
-              <div className="text-muted" style={{ fontSize: 13.5, direction: 'ltr', textAlign: 'end' }}>{detail.phone}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 160px', minWidth: 0 }}>
+              <div style={{ fontSize: 'var(--fs-lead)', fontWeight: 500 }}>{detail.name}</div>
+              <div className="text-muted ltr-cell" style={{ fontSize: 'var(--fs-meta)' }}>{detail.phone}</div>
             </div>
-            <a className="btn btn-secondary" style={{ marginInlineStart: 'auto', fontSize: 14 }} href={`https://wa.me/${detail.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer">
+            <a className="btn btn-secondary" href={`https://wa.me/${detail.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer">
               <WhatsappLogo />{t.whatsapp}
             </a>
-            <Button variant="ghost" icon onClick={() => setOpenId(null)}><X /></Button>
+            <Button variant="ghost" icon onClick={() => setOpenId(null)} aria-label={t.close}><X /></Button>
           </div>
-          <div style={{ display: 'flex', gap: 20, fontSize: 14 }}>
+          <div style={{ display: 'flex', gap: 20, fontSize: 'var(--fs-body)', flexWrap: 'wrap' }}>
             <span><span className="text-muted">{t.points}:</span> {detail.points}</span>
             <span><span className="text-muted">{t.sizesPref}:</span> {detail.sizePreferences}</span>
           </div>
           <CardKicker>{t.history}</CardKicker>
-          {history.length === 0 && <div className="text-muted" style={{ fontSize: 14 }}>—</div>}
+          {history.length === 0 && <div className="text-muted">—</div>}
           {history.map((s) => (
-            <div key={s.no} style={{ display: 'flex', gap: 10, fontSize: 14, padding: '3px 0' }}>
-              <span style={{ direction: 'ltr' }} className="text-muted">{s.no}</span>
+            <div key={s.no} style={{ display: 'flex', gap: 10, fontSize: 'var(--fs-body)', padding: '3px 0', flexWrap: 'wrap' }}>
+              <span className="text-muted ltr-cell">{s.no}</span>
               <span className="text-muted">{s.date}</span>
-              <span style={{ flex: 1 }}>{s.lines.map((l) => productName(lang, products.find((p) => l.sku.startsWith(p.code + '-'))!)).join('، ')}</span>
-              <span>{fmtUsd(saleTotal(s))}</span>
+              <span style={{ flex: '1 1 100%', order: 3 }}>{s.lines.map((l) => productName(lang, products.find((p) => l.sku.startsWith(p.code + '-'))!)).join('، ')}</span>
+              <span style={{ marginInlineStart: 'auto' }}>{fmtUsd(saleTotal(s))}</span>
             </div>
           ))}
         </Card>

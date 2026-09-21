@@ -21,21 +21,17 @@ export function ReceivePoDialog({ po, onClose }: { po: PurchaseOrder; onClose: (
     .filter((r) => r.qty > 0)
   const canSubmit = receipts.length > 0
 
-  const submit = () => {
-    receivePurchaseOrder(po.id, receipts)
-    flash(t.trDone)
-    onClose()
-  }
+  const submit = () => { receivePurchaseOrder(po.id, receipts); flash(t.trDone); onClose() }
 
   return (
     <Dialog title={`${t.receivePo} — ${po.id}`} onClose={onClose} width={480}>
-      <span className="text-muted" style={{ fontSize: 13 }}>{t.allocNote}</span>
+      <span className="text-muted" style={{ fontSize: 'var(--fs-meta)' }}>{t.allocNote}</span>
       {po.items.map((i) => {
         const p = products.find((pp) => pp.code === i.productCode)!
         const remaining = remainingByCode[i.productCode]
         return (
           <Field key={i.productCode} label={`${productName(lang, p)} — ${t.ordered} ${i.qtyOrdered} / ${t.received} ${i.qtyReceived}`}>
-            <Input style={{ direction: 'ltr', maxWidth: 140 }} value={qtys[i.productCode]} disabled={remaining <= 0}
+            <Input kind="qty" style={{ maxWidth: 160 }} value={qtys[i.productCode]} disabled={remaining <= 0}
               onChange={(e) => setQtys((cur) => ({ ...cur, [i.productCode]: e.target.value }))} />
           </Field>
         )

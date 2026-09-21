@@ -33,6 +33,30 @@ Worth trying:
 - **Transfers** — the request → send → receive flow moves stock between branches.
 - **العربية / English** — toggle in the sidebar; the whole layout mirrors.
 
+## Mobile and tablet
+
+The system is built to be used on a phone or tablet at the till, not just viewed:
+
+- **Phone (< 640px)** — the sidebar becomes a hamburger drawer; the POS shows
+  products as full-width rows with a persistent bottom bar carrying the running
+  total and **Pay**, so the fast path (scan, scan, scan, Pay) never opens the cart.
+  Wide tables (purchasing, transfers, stock counts…) stack into labelled cards.
+- **Tablet (640–1023px)** — drawer navigation with a product-tile grid; the POS
+  keeps the bottom bar because stacking gives 4 tile columns where a side-by-side
+  cart would give 2.
+- **Laptop (≥ 1024px)** — static sidebar and the side-by-side POS cart.
+
+Every money and quantity field opens the right on-screen keyboard (`inputMode`),
+no input is under 16px (so iOS never zooms on focus), all touch targets are 44px on
+coarse-pointer devices, and Arabic text is never letter-spaced (tracking breaks the
+cursive joins). Dialogs become bottom sheets on phones so their primary action is
+always thumb-reachable.
+
+Architecture note: layout is decided in CSS (`src/styles/tokens.css` — responsive
+custom properties redefined per tier, consumed by inline `var()`), and JS only
+handles what CSS can't express (`inert`, focus traps, conditional mounting) via
+`src/lib/useMediaQuery.ts`.
+
 ## Running locally
 
 ```bash

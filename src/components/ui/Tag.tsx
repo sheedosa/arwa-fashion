@@ -4,19 +4,11 @@ export function Tag({ children, variant = 'neutral', style }: { children: ReactN
   return <span className={`tag tag-${variant}`} style={style}>{children}</span>
 }
 
-/** Chip button used for filters/category selectors — background/border/color set inline so
- * selection state can vary per-item, matching the prototype's chipStyle() helper. */
+/** Chip button used for filters/category selectors. Sizing lives in .chip so
+ * the touch tier can grow it — an inline style can't be reached by a media query. */
 export function Chip({ label, selected, onClick }: { label: ReactNode; selected: boolean; onClick: () => void }) {
   return (
-    <button
-      onClick={onClick}
-      style={{
-        cursor: 'pointer', padding: '7px 14px', fontSize: 13.5, borderRadius: 'var(--radius-md)',
-        border: `1px solid ${selected ? 'var(--color-accent)' : 'var(--color-divider)'}`,
-        background: selected ? 'color-mix(in srgb, var(--color-accent) 12%, transparent)' : 'transparent',
-        color: selected ? 'var(--color-accent-200)' : 'var(--color-text)',
-      }}
-    >
+    <button type="button" className="chip" data-selected={selected} aria-pressed={selected} onClick={onClick}>
       {label}
     </button>
   )

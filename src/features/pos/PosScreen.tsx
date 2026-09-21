@@ -1,23 +1,27 @@
-import { useMemo, useState } from 'react'
-import { Basket, Minus, Plus, X, MapPin, Money } from '@phosphor-icons/react'
-import { useI18n, useNm } from '../../lib/i18n'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Basket } from '@phosphor-icons/react'
+import { useI18n } from '../../lib/i18n'
 import { useStore } from '../../store/useStore'
-import { BRANCHES, COLORS } from '../../lib/mockData'
-import { fmtUsd, fmtLyd } from '../../lib/currency'
-import { lineTotal, saleTotal } from '../../lib/calc'
-import { variantMeta, productName } from '../../lib/variantDisplay'
+import { useBreakpoint } from '../../lib/useMediaQuery'
+import { useKeyboardOpen } from '../../lib/useKeyboardOpen'
+import { BRANCHES } from '../../lib/mockData'
+import { saleTotal } from '../../lib/calc'
+import { productName } from '../../lib/variantDisplay'
 import { Input } from '../../components/ui/Field'
 import { Card } from '../../components/ui/Card'
-import { Tag } from '../../components/ui/Tag'
-import { Chip } from '../../components/ui/Tag'
-import { Button } from '../../components/ui/Button'
+import { Tag, Chip } from '../../components/ui/Tag'
+import { ProductTile } from './ProductTile'
+import { CartPanel } from './CartPanel'
+import { CartSheet } from './CartSheet'
+import { CartBar } from './CartBar'
 import { PaymentDialog } from './PaymentDialog'
 import { ReceiptDialog } from './ReceiptDialog'
 import type { Sale } from '../../lib/types'
 
+const BAR_H = 68
+
 export function PosScreen() {
   const { t, lang } = useI18n()
-  const nm = useNm()
   const products = useStore((s) => s.products)
   const variants = useStore((s) => s.variants)
   const inventory = useStore((s) => s.inventory)
@@ -26,19 +30,23 @@ export function PosScreen() {
   const orderDiscountPct = useStore((s) => s.orderDiscountPct)
   const lowStockThreshold = useStore((s) => s.lowStockThreshold)
   const addToCart = useStore((s) => s.addToCart)
-  const bumpCartLine = useStore((s) => s.bumpCartLine)
-  const setCartLineDiscount = useStore((s) => s.setCartLineDiscount)
-  const removeCartLine = useStore((s) => s.removeCartLine)
-  const setOrderDiscount = useStore((s) => s.setOrderDiscount)
   const flash = useStore((s) => s.flash)
+  const fxRate = useStore((s) => s.fxRate)
+
+  // Side-by-side returns at 900px: at iPad portrait, stacked gives 4 product
+  // tiles where a split would give 2. Tiles become full-width rows below 640.
+  const split = useBreakpoint('posSplit')
+  const gridTiles = useBreakpoint('tablet')
+  const keyboardOpen = useKeyboardOpen()
 
   const [query, setQuery] = useState('')
   const [cat, setCat] = useState('')
   const [payOpen, setPayOpen] = useState(false)
+  const [sheetOpen, setSheetOpen] = useState(false)
   const [receipt, setReceipt] = useState<Sale | null>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
 
   const categories = useMemo(() => [...new Set(products.map((p) => p.category.en))], [products])
-
   const q = query.trim().toLowerCase()
   const results = useMemo(() => {
     return variants.filter((v) => {
@@ -50,40 +58,69 @@ export function PosScreen() {
     }).slice(0, 24)
   }, [variants, products, cat, q, query])
 
-  const subtotal = cart.reduce((a, l) => a + lineTotal(l), 0)
+  const itemCount = cart.reduce((a, l) => a + l.qty, 0)
   const total = saleTotal({ lines: cart, orderDiscountPct })
-  const fxRate = useStore((s) => s.fxRate)
 
+  // Lift the Toast above the bottom bar on phone.
+  useEffect(() => {
+    document.documentElement.style.setProperty('--bottom-bar-h', split ? '0px' : `${BAR_H}px`)
+    return () => { document.documentElement.style.removeProperty('--bottom-bar-h') }
+  }, [split])
+  // A completed sale empties the cart → drop back to the product grid.
+  useEffect(() => { if (itemCount === 0) setSheetOpen(false) }, [itemCount])
+
+  // Stock-refusal detection via before/after compare (addToCart refuses silently).
   const handleAdd = (sku: string) => {
     const before = useStore.getState().cart.find((l) => l.sku === sku)?.qty || 0
     addToCart(sku)
     const after = useStore.getState().cart.find((l) => l.sku === sku)?.qty || 0
     if (after === before) flash(t.noStock)
+    else if (!split) {
+      // On a phone the tile highlight is easy to miss; a toast is not.
+      const p = products.find((pp) => sku.startsWith(pp.code + '-'))
+      flash(`${t.added} · ${p ? productName(lang, p) : sku}`)
+    }
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 370px', gap: 16, height: '100%', minHeight: 0 }} data-screen-label="POS">
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minHeight: 0 }}>
+    <div
+      data-screen-label="POS"
+      style={split
+        ? { display: 'grid', gridTemplateColumns: 'minmax(0,1fr) clamp(300px, 30vw, 370px)', gap: 16, height: '100%', minHeight: 0 }
+        : { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minHeight: 0, flex: 1 }}>
+        {/* flex:none header above the scroller, so the keyboard never covers it */}
         <Input
-          style={{ minHeight: 44, fontSize: 16.5 }}
+          ref={searchRef}
+          kind="search"
+          style={{ minHeight: 48, fontSize: 16.5, flex: 'none' }}
           placeholder={t.searchPos}
           value={query}
+          autoCapitalize="characters"
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
+            // Barcode scanners emit keystrokes + Enter. Focus is kept so
+            // consecutive scans work.
             if (e.key === 'Enter') {
               const sku = query.trim().toUpperCase()
               if (variants.some((v) => v.sku === sku)) { handleAdd(sku); setQuery('') }
             }
           }}
         />
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <div className="chip-row" style={{ flex: 'none' }}>
           <Chip label={t.all} selected={!cat} onClick={() => setCat('')} />
           {categories.map((c) => {
             const label = lang === 'ar' ? products.find((p) => p.category.en === c)!.category.ar : c
             return <Chip key={c} label={label} selected={cat === c} onClick={() => setCat(c)} />
           })}
         </div>
-        <div style={{ overflow: 'auto', display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(168px,1fr))', gap: 10, alignContent: 'start', paddingBottom: 8 }}>
+        <div style={{
+          flex: 1, minHeight: 0, overflow: 'auto', overscrollBehavior: 'contain', display: 'grid',
+          gridTemplateColumns: gridTiles ? 'repeat(auto-fill,minmax(168px,1fr))' : '1fr',
+          gap: gridTiles ? 10 : 8, alignContent: 'start',
+          paddingBottom: split ? 8 : BAR_H + 12,
+        }}>
           {results.length === 0 && (
             <div className="text-muted" style={{ gridColumn: '1/-1', padding: '36px 0', textAlign: 'center' }}>{t.noResults}</div>
           )}
@@ -92,94 +129,42 @@ export function PosScreen() {
             const qty = inventory[v.sku]?.[branch] || 0
             const other = BRANCHES.filter((b) => b.id !== branch && (inventory[v.sku]?.[b.id] || 0) > 0)
             return (
-              <button
-                key={v.sku}
-                onClick={() => handleAdd(v.sku)}
-                style={{
-                  textAlign: 'start', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 5,
-                  padding: '10px 12px', background: 'var(--color-surface)', border: '1px solid var(--color-divider)',
-                  borderRadius: 'var(--radius-md)', color: 'var(--color-text)', opacity: qty === 0 ? 0.55 : 1,
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--color-accent)')}
-                onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--color-divider)')}
-              >
-                <div style={{ fontSize: 14.5, fontWeight: 500, lineHeight: 1.3 }}>{productName(lang, p)}</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5 }} className="text-muted">
-                  <span style={{ width: 10, height: 10, borderRadius: '50%', flex: 'none', border: '1px solid var(--color-divider)', backgroundColor: COLORS[v.color].hex }} />
-                  {variantMeta(lang, v)}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 }}>
-                  <span style={{ color: 'var(--color-accent)', fontSize: 15.5 }}>{fmtUsd(p.price)}</span>
-                  <span style={{ fontSize: 12.5, color: qty === 0 ? 'var(--color-neutral-500)' : qty <= lowStockThreshold ? 'var(--color-accent-300)' : 'color-mix(in srgb, var(--color-text) 55%, transparent)' }}>
-                    {qty > 0 ? `${t.qty} ${qty}` : t.outStock}
-                  </span>
-                </div>
-                {qty === 0 && other.length > 0 && (
-                  <span style={{ fontSize: 12, color: 'var(--color-accent-300)' }}>
-                    <MapPin style={{ display: 'inline', verticalAlign: '-2px' }} /> {t.elsewhere} {nm(other[0].name)} ({inventory[v.sku]?.[other[0].id] || 0})
-                  </span>
-                )}
-              </button>
+              <ProductTile
+                key={v.sku} v={v} p={p} qty={qty} other={other}
+                otherQty={other.length ? inventory[v.sku]?.[other[0].id] || 0 : 0}
+                lowStockThreshold={lowStockThreshold}
+                layout={gridTiles ? 'grid' : 'row'}
+                onAdd={() => handleAdd(v.sku)}
+              />
             )
           })}
         </div>
       </div>
 
-      <Card className="elev-sm" style={{ minHeight: 0, gap: 0, padding: 0, overflow: 'hidden' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', borderBottom: '1px solid var(--color-divider)' }}>
-          <Basket style={{ color: 'var(--color-accent)' }} /><span style={{ fontWeight: 500 }}>{t.cart}</span>
-          <Tag variant="neutral" style={{ marginInlineStart: 'auto' }}>{cart.reduce((a, l) => a + l.qty, 0)}</Tag>
-        </div>
-        <div style={{ flex: 1, overflow: 'auto', padding: '8px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {cart.length === 0 && <div className="text-muted" style={{ fontSize: 14, padding: '24px 0', textAlign: 'center' }}>{t.emptyCart}</div>}
-          {cart.map((l) => {
-            const p = products.find((pp) => l.sku.startsWith(pp.code + '-'))!
-            const v = variants.find((vv) => vv.sku === l.sku)!
-            return (
-              <div key={l.sku} style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingBottom: 10, borderBottom: '1px solid var(--color-divider)' }}>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
-                  <span style={{ fontSize: 14.5, fontWeight: 500, flex: 1 }}>{productName(lang, p)}</span>
-                  <span style={{ fontSize: 14.5 }}>{fmtUsd(lineTotal(l))}</span>
-                </div>
-                <div className="text-muted" style={{ fontSize: 12.5 }}>{variantMeta(lang, v)} · {fmtUsd(l.price)}</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Button variant="secondary" icon style={{ width: 34, height: 34 }} onClick={() => bumpCartLine(l.sku, -1)}><Minus /></Button>
-                  <span style={{ minWidth: 24, textAlign: 'center', fontSize: 15.5 }}>{l.qty}</span>
-                  <Button variant="secondary" icon style={{ width: 34, height: 34 }} onClick={() => bumpCartLine(l.sku, 1)}><Plus /></Button>
-                  <span className="text-muted" style={{ fontSize: 12.5, marginInlineStart: 8 }}>{t.lineDisc}</span>
-                  <Input style={{ width: 52, minHeight: 30, padding: '2px 8px', fontSize: 13.5, textAlign: 'center' }} value={l.discountPct || ''} onChange={(e) => setCartLineDiscount(l.sku, parseFloat(e.target.value) || 0)} />
-                  <Button variant="ghost" icon style={{ width: 30, height: 30, marginInlineStart: 'auto' }} onClick={() => removeCartLine(l.sku)}><X style={{ fontSize: 14.5 }} /></Button>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-        <div style={{ padding: '12px 14px', borderTop: '1px solid var(--color-divider)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }} className="text-muted"><span>{t.subtotal}</span><span>{fmtUsd(subtotal)}</span></div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 14 }}>
-            <span className="text-muted">{t.orderDisc}</span>
-            <Input style={{ width: 60, minHeight: 30, padding: '2px 8px', fontSize: 13.5, textAlign: 'center' }} value={orderDiscountPct || ''} onChange={(e) => setOrderDiscount(parseFloat(e.target.value) || 0)} />
+      {split ? (
+        <Card className="elev-sm" style={{ minHeight: 0, gap: 0, padding: 0, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', borderBottom: '1px solid var(--color-divider)' }}>
+            <Basket style={{ color: 'var(--color-accent)' }} />
+            <span style={{ fontWeight: 500 }}>{t.cart}</span>
+            <Tag variant="neutral" style={{ marginInlineStart: 'auto' }}>{itemCount}</Tag>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <span style={{ fontWeight: 500 }}>{t.total}</span>
-            <span style={{ textAlign: 'end' }}>
-              <span style={{ fontSize: 22, fontWeight: 500, color: 'var(--color-accent-300)' }}>{fmtUsd(total)}</span><br />
-              <span className="text-muted" style={{ fontSize: 13 }}>≈ {fmtLyd(total * fxRate, lang)}</span>
-            </span>
-          </div>
-          <Button variant="primary" block style={{ minHeight: 46, fontSize: 17.5 }} onClick={() => setPayOpen(true)} disabled={cart.length === 0}>
-            <Money />{t.pay}
-          </Button>
-        </div>
-      </Card>
+          <CartPanel compact={false} onPay={() => setPayOpen(true)} />
+        </Card>
+      ) : (
+        <>
+          <CartBar count={itemCount} total={total} fxRate={fxRate} hidden={keyboardOpen}
+            onOpen={() => setSheetOpen(true)} onPay={() => setPayOpen(true)} />
+          {/* stays mounted while PaymentDialog (z 40) is open, so Cancel returns here */}
+          <CartSheet open={sheetOpen} count={itemCount} onClose={() => setSheetOpen(false)}>
+            <CartPanel compact onPay={() => setPayOpen(true)} />
+          </CartSheet>
+        </>
+      )}
 
       {payOpen && (
-        <PaymentDialog
-          onClose={() => setPayOpen(false)}
-          onComplete={(sale) => { setPayOpen(false); setReceipt(sale) }}
-        />
+        <PaymentDialog onClose={() => setPayOpen(false)} onComplete={(sale) => { setPayOpen(false); setReceipt(sale) }} />
       )}
-      {receipt && <ReceiptDialog sale={receipt} onClose={() => setReceipt(null)} />}
+      {receipt && <ReceiptDialog sale={receipt} onClose={() => { setReceipt(null); searchRef.current?.focus() }} />}
     </div>
   )
 }

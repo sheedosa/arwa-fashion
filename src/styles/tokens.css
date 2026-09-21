@@ -1,10 +1,26 @@
 @import "tailwindcss";
 
 /* ══════════════════════════════════════════════════════════════════════════
-   Nocturne — design-system tokens and component classes, ported verbatim
-   from the Claude Design handoff (project/nocturne.css) so the production
-   app matches the approved prototype pixel-for-pixel. Retune here only.
+   Nocturne — design-system tokens and component classes, ported from the
+   Claude Design handoff (project/nocturne.css) so the production app matches
+   the approved prototype pixel-for-pixel on desktop. Retune here only.
+
+   RESPONSIVE TIERS — keep in sync with src/lib/breakpoints.ts
+     tablet    ≥ 40rem     / 640px
+     posSplit  ≥ 56.25rem  / 900px
+     laptop    ≥ 64rem     / 1024px
+     touch     (pointer: coarse) OR < 64rem   → 44px hit targets
+
+   Rule of the house: CSS decides layout, JS decides semantics. If a value
+   differs by tier, make it a custom property redefined below — inline styles
+   can read `var(--x)` and that is what makes them responsive.
    ══════════════════════════════════════════════════════════════════════ */
+
+@theme {
+  --breakpoint-tablet: 40rem;
+  --breakpoint-split: 56.25rem;
+  --breakpoint-laptop: 64rem;
+}
 
 :root {
   --color-bg: #f4f5fa;
@@ -67,32 +83,117 @@
   --shadow-sm: 0 0 0 1px #e2e4ee;
   --shadow-md: 0 0 0 1px #d5d8e6, 0 6px 18px rgba(24, 26, 45, 0.1);
   --shadow-lg: 0 0 0 1px #b8bccf, 0 16px 40px rgba(24, 26, 45, 0.16);
+
+  /* — responsive type scale —
+     Consumed from inline styles as fontSize: 'var(--fs-meta)'. This lets the
+     ~120 inline font sizes become responsive without rewriting them. */
+  --fs-base-micro: 12px;
+  --fs-base-meta: 13.5px;
+  --fs-base-body: 15px;
+  --fs-base-lead: 16.5px;
+  --fs-base-num: 19px;
+
+  /* Arabic in Tajawal reads ~1 size smaller than Inter at the same px. One
+     multiplier, set on <html lang="ar">, composes with the tier. */
+  --fs-lang: 1;
+
+  --fs-micro: calc(var(--fs-base-micro) * var(--fs-lang));
+  --fs-meta: calc(var(--fs-base-meta) * var(--fs-lang));
+  --fs-body: calc(var(--fs-base-body) * var(--fs-lang));
+  --fs-lead: calc(var(--fs-base-lead) * var(--fs-lang));
+  --fs-num: calc(var(--fs-base-num) * var(--fs-lang));
+
+  /* — letter-spacing —
+     Tracking breaks Arabic cursive joins: letters visually disconnect. Latin
+     small-caps labels want it; Arabic must have zero. */
+  --tracking-kicker: 0.1em;
+  --tracking-th: 0.08em;
+  --tracking-tight: -0.015em;
+  /* Arabic loses the tracking cue, so it gets a weight cue instead. */
+  --label-weight: 400;
+
+  /* — metrics — */
+  --tap: 36px;                 /* minimum interactive box */
+  --gutter: 32px;              /* horizontal page padding */
+  --gap: 22px;                 /* vertical page padding / stack gap */
+  --rule-inset: min(48px, 3%); /* table row-rule fade — see tables */
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --bottom-bar-h: 0px;         /* set by POS on phone so Toast lifts above it */
 }
 
+/* Arabic: bigger type, no tracking, heavier labels. DirSync in App.tsx sets
+   document.documentElement.lang, so :lang(ar) resolves at the root. */
+:root:lang(ar) {
+  --fs-lang: 1.06;
+  --tracking-kicker: 0;
+  --tracking-th: 0;
+  --tracking-tight: 0;
+  --label-weight: 500;
+}
+
+/* TOUCH TIER — finger-first. Grows targets and type; never shrinks anything.
+   Keyed off the pointer, not the width: an iPad in landscape is 1024px wide
+   with a coarse pointer, and it is this app's primary device. */
+@media (pointer: coarse), (max-width: 63.99rem) {
+  :root {
+    --fs-base-micro: 13px;
+    --fs-base-meta: 14.5px;
+    --fs-base-body: 16px;
+    --fs-base-lead: 17.5px;
+    --fs-base-num: 21px;
+    --tap: 44px;
+    --gutter: 14px;
+    --gap: 14px;
+  }
+}
+
+/* ── baseline ─────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
 html, body, #root { height: 100%; }
+html {
+  /* Stops iOS/Android inflating text after a rotate. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
 body {
   margin: 0;
   background: var(--color-bg);
   color: var(--color-text);
   font-family: Inter, 'Tajawal', system-ui, sans-serif;
-  font-size: 15.5px;
+  font-size: var(--fs-body);
   line-height: 1.55;
   font-weight: 400;
+  /* Tinted, not transparent: several raw <button>s in this codebase have no
+     :active state, so killing the highlight would remove all tap feedback. */
+  -webkit-tap-highlight-color: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  overscroll-behavior-y: none; /* no pull-to-refresh mid-sale */
 }
+/* Removes the 300ms double-tap delay on controls without disabling page
+   pinch-zoom. Deliberately NOT applied to scroll containers. */
+button, a, [role='button'], summary, label,
+select, input[type='checkbox'], input[type='radio'] {
+  touch-action: manipulation;
+}
+
 h1, h2, h3, h4, h5, h6, .btn, .card-title, .dialog-title, .nav-brand {
   font-family: Inter, 'Tajawal', system-ui, sans-serif;
   font-weight: var(--font-heading-weight);
   line-height: 1.12;
-  letter-spacing: -0.015em;
+  letter-spacing: var(--tracking-tight);
   margin: 0 0 var(--space-2);
 }
-h1 { font-size: 38px; }
-h2 { font-size: 30px; }
-h3 { font-size: 25px; }
-h4 { font-size: 20px; }
+/* Fluid headings: h1 at a fixed 38px overflows 375px in Arabic. */
+h1 { font-size: clamp(27px, 6vw, 38px); }
+h2 { font-size: clamp(23px, 5vw, 30px); }
+h3 { font-size: clamp(20px, 4.2vw, 25px); }
+h4 { font-size: clamp(18px, 3.4vw, 20px); }
 h5 { font-size: 16px; }
-h6 { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }
+h6 {
+  font-size: var(--fs-meta);
+  letter-spacing: var(--tracking-th);
+  text-transform: uppercase;
+  font-weight: var(--label-weight);
+}
 p { margin: 0 0 var(--space-3); }
 a { color: var(--color-accent); text-underline-offset: 3px; text-decoration: none; }
 a:hover { color: var(--color-accent-300); }
@@ -102,20 +203,23 @@ img { display: block; max-width: 100%; }
 :focus { outline: none; }
 :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 ::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }
-.table th, .table td { text-align: start; }
 
 @keyframes blink { 50% { opacity: 0.35; } }
 
-/* — buttons — */
+/* ── buttons ──────────────────────────────────────────────────────────── */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   cursor: pointer; text-decoration: none;
   font-family: var(--font-heading); font-weight: var(--font-heading-weight);
-  font-size: 15px; line-height: 1.2; color: var(--color-text);
+  font-size: var(--fs-body); line-height: 1.2; color: var(--color-text);
   background: transparent; border: 1px solid transparent;
-  padding: var(--space-2) calc(var(--space-3) * 1.2);
+  /* min-height, not padding, drives the box: 36px on a mouse, 44px on a finger. */
+  min-height: var(--tap);
+  padding: var(--space-2) calc(var(--space-3) * 1.4);
   border-radius: var(--radius-md);
   transition: background-color 0.12s ease, border-color 0.12s ease;
+  touch-action: manipulation;
+  -webkit-user-select: none; user-select: none;
 }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .btn-primary { color: var(--color-accent); border-color: var(--color-accent); }
@@ -124,20 +228,32 @@ img { display: block; max-width: 100%; }
 .btn-secondary { border-color: var(--color-divider); }
 .btn-secondary:hover:not(:disabled) { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
 .btn-secondary:active:not(:disabled) { background: color-mix(in srgb, var(--color-text) 14%, transparent); }
-.btn-ghost { color: var(--color-accent); padding-inline: var(--space-1); }
+.btn-ghost { color: var(--color-accent); padding-inline: var(--space-3); }
 .btn-ghost:hover:not(:disabled) { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
 .btn-ghost:active:not(:disabled) { background: color-mix(in srgb, var(--color-accent) 18%, transparent); }
-.btn-icon { width: 36px; height: 36px; padding: 0; }
+/* Stays after .btn-ghost so `padding: 0` wins for icon-only ghost buttons. */
+.btn-icon {
+  width: var(--tap); height: var(--tap);
+  min-width: var(--tap); min-height: var(--tap);
+  padding: 0;
+}
 .btn-block { width: 100%; margin-top: var(--space-2); }
+.btn-danger { color: var(--color-bad); }
 
-/* — forms — */
+/* ── forms ────────────────────────────────────────────────────────────── */
 .field > label {
-  display: block; font-size: 13px; margin-bottom: 5px;
+  display: block; font-size: var(--fs-meta); margin-bottom: 5px;
   color: color-mix(in srgb, var(--color-text) 70%, transparent);
 }
 .input {
-  width: 100%; min-height: 36px; padding: 6px 10px; font: inherit;
-  font-size: 15px; color: var(--color-text); caret-color: var(--color-accent);
+  width: 100%;
+  min-height: var(--tap);
+  padding: 6px 12px;
+  font: inherit;
+  /* The 16px floor is UNCONDITIONAL: iOS Safari zooms on focus for any input
+     below 16px regardless of viewport width. */
+  font-size: max(16px, var(--fs-body));
+  color: var(--color-text); caret-color: var(--color-accent);
   background: var(--color-surface);
   border: 1px solid var(--color-divider); border-radius: var(--radius-md);
 }
@@ -146,22 +262,89 @@ img { display: block; max-width: 100%; }
 .input:disabled { opacity: 0.6; cursor: not-allowed; }
 textarea.input { min-height: 90px; resize: vertical; }
 select.input { cursor: pointer; }
+.input-num { font-variant-numeric: tabular-nums; text-align: end; }
+/* Small in-row fields (POS discounts). Compact box, still the 16px floor. */
+.input-tight {
+  min-height: 34px;
+  padding: 2px 8px;
+  text-align: center;
+  font-size: max(16px, var(--fs-meta));
+}
+@media (pointer: coarse), (max-width: 63.99rem) {
+  .input-tight { min-height: var(--tap); }
+}
 
-/* — cards — */
+/* ── chips ────────────────────────────────────────────────────────────── */
+.chip {
+  display: inline-flex; align-items: center; justify-content: center;
+  flex: none;
+  min-height: var(--tap);
+  padding-inline: 14px;
+  font-size: var(--fs-meta);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  border: 1px solid var(--color-divider);
+  background: transparent;
+  color: var(--color-text);
+  white-space: nowrap;
+  touch-action: manipulation;
+}
+.chip[data-selected='true'] {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  color: var(--color-accent-200);
+}
+/* Horizontally scrolling chip strip — the POS category filter otherwise
+   wraps to four rows on a 375px phone and eats the product grid. */
+.chip-row {
+  display: flex; gap: 6px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  padding-block: 2px;
+}
+.chip-row::-webkit-scrollbar { display: none; }
+.chip-row > .chip { scroll-snap-align: start; }
+@media (min-width: 64rem) {
+  .chip-row { flex-wrap: wrap; overflow-x: visible; }
+}
+
+/* ── cards ────────────────────────────────────────────────────────────── */
 .card {
   display: flex; flex-direction: column; gap: var(--space-2);
   padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-surface);
+  min-width: 0;
 }
-.card-kicker { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-accent); }
-.card-title { font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-size: 17px; line-height: 1.2; }
-.card-body { margin: 0; font-size: 14px; opacity: 0.8; flex: 1; }
-.card-meta { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: color-mix(in srgb, var(--color-text) 50%, transparent); }
+.card-kicker {
+  font-size: var(--fs-micro);
+  letter-spacing: var(--tracking-kicker);
+  text-transform: uppercase;
+  font-weight: var(--label-weight);
+  color: var(--color-accent);
+}
+.card-title { font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-size: var(--fs-lead); line-height: 1.2; }
+.card-body { margin: 0; font-size: var(--fs-body); opacity: 0.8; flex: 1; }
+.card-meta { display: flex; align-items: center; gap: 6px; font-size: var(--fs-meta); color: color-mix(in srgb, var(--color-text) 50%, transparent); }
 .elev-sm { box-shadow: var(--shadow-sm); }
 .elev-md { box-shadow: var(--shadow-md); }
 .elev-lg { box-shadow: var(--shadow-lg); }
 
-/* — tags — */
-.tag { display: inline-flex; align-items: center; font-size: 12.5px; letter-spacing: 0.02em; padding: 3px 10px; border-radius: calc(var(--radius-md) * 0.75); white-space: nowrap; }
+/* Generic auto-fit grid. The `min()` stops a track floor wider than the
+   viewport from overflowing (e.g. a 340px floor at 375px). */
+.grid-auto {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(min(var(--grid-min, 230px), 100%), 1fr));
+}
+/* Two-column layouts that must stack on phone/tablet. */
+.grid-2 { display: grid; gap: 14px; grid-template-columns: 1fr; align-items: start; }
+@media (min-width: 64rem) {
+  .grid-2 { grid-template-columns: var(--grid-2-cols, 1fr 1fr); }
+}
+
+/* ── tags ─────────────────────────────────────────────────────────────── */
+.tag { display: inline-flex; align-items: center; font-size: var(--fs-micro); padding: 3px 10px; border-radius: calc(var(--radius-md) * 0.75); white-space: nowrap; }
 .tag-accent { background: var(--color-accent-800); color: var(--color-accent-100); }
 .tag-accent-2 { background: var(--color-accent-2-800); color: var(--color-accent-2-100); }
 .tag-neutral { background: var(--color-neutral-800); color: var(--color-neutral-100); }
@@ -169,39 +352,262 @@ select.input { cursor: pointer; }
 .tag-good { background: var(--color-good-bg); color: var(--color-good); }
 .tag-bad { background: var(--color-bad-bg); color: var(--color-bad); }
 
-/* — tables — */
-.table { width: 100%; border-collapse: collapse; font-size: 15px; }
+/* ── tables ───────────────────────────────────────────────────────────── */
+.table {
+  width: 100%;
+  /* separate + border-spacing 0 rather than collapse: sticky thead is
+     unreliable under border-collapse. Row rules are gradients, not borders. */
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--fs-body);
+}
 .table th {
-  text-align: start; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+  text-align: start;
+  font-size: var(--fs-micro);
+  letter-spacing: var(--tracking-th);
+  text-transform: uppercase;
+  font-weight: var(--label-weight);
   color: color-mix(in srgb, var(--color-text) 60%, transparent);
-  padding: var(--space-2); border-bottom: 1px solid transparent;
+  padding: var(--space-2);
+  white-space: nowrap;
 }
-.table td { text-align: start; padding: var(--space-2); border-bottom: 1px solid transparent; vertical-align: middle; }
-.table thead tr {
-  background: linear-gradient(to right, transparent, var(--color-divider) 48px, var(--color-divider) calc(100% - 48px), transparent) no-repeat bottom / 100% 1px;
-}
+.table td { text-align: start; padding: var(--space-2); vertical-align: middle; }
+.table thead th { box-shadow: inset 0 -1px 0 var(--color-divider); }
+/* Row rules. The old fixed 48px fade was ~36% of a 360px row; min(48px,3%)
+   keeps the designed fade on desktop and collapses to a hairline on a phone. */
 .table tbody tr {
-  background: linear-gradient(to right, transparent, color-mix(in srgb, var(--color-text) 8%, transparent) 48px, color-mix(in srgb, var(--color-text) 8%, transparent) calc(100% - 48px), transparent) no-repeat bottom / 100% 1px;
+  background: linear-gradient(to right, transparent,
+      color-mix(in srgb, var(--color-text) 8%, transparent) var(--rule-inset),
+      color-mix(in srgb, var(--color-text) 8%, transparent) calc(100% - var(--rule-inset)),
+      transparent) no-repeat bottom / 100% 1px;
 }
 .table tbody tr:hover {
   background:
-    linear-gradient(color-mix(in srgb, var(--color-text) 4%, transparent), color-mix(in srgb, var(--color-text) 4%, transparent)) no-repeat 0 0 / 100% 100%,
-    linear-gradient(to right, transparent, color-mix(in srgb, var(--color-text) 8%, transparent) 48px, color-mix(in srgb, var(--color-text) 8%, transparent) calc(100% - 48px), transparent) no-repeat bottom / 100% 1px;
+    linear-gradient(color-mix(in srgb, var(--color-text) 4%, transparent),
+                    color-mix(in srgb, var(--color-text) 4%, transparent)) no-repeat 0 0 / 100% 100%,
+    linear-gradient(to right, transparent,
+      color-mix(in srgb, var(--color-text) 8%, transparent) var(--rule-inset),
+      color-mix(in srgb, var(--color-text) 8%, transparent) calc(100% - var(--rule-inset)),
+      transparent) no-repeat bottom / 100% 1px;
 }
+@media (pointer: coarse), (max-width: 63.99rem) {
+  .table td { padding-block: 10px; }
+}
+/* .table-scroll: horizontal escape hatch so a wide table never drags the page.
+   .table-pane:   + a height cap, which is what makes a sticky thead work
+                  (overflow-x:auto forces overflow-y:auto, so the container
+                  must be height-bounded for sticky to have any effect). */
+.table-scroll { overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
+.table-pane {
+  overflow: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  max-height: min(70dvh, 640px);
+  scrollbar-gutter: stable;
+}
+.table-pane .table thead th { position: sticky; top: 0; z-index: 1; background: var(--color-surface); }
 
-/* — dialog — */
+/* The bug: <th> inherits dir=rtl so `text-align:start` resolves RIGHT, but a
+   cell's own `direction:ltr` flips `start` to LEFT — SKU data sat at the
+   opposite edge from its header. Keep ltr for correct bidi of "SKU-12-A",
+   "+218 91…", "-3", but align to `end`, which under local ltr is RIGHT. */
+.ltr-cell { direction: ltr; unicode-bidi: isolate; text-align: start; }
+[dir='rtl'] .ltr-cell { text-align: end; }
+
+/* Phone card rendering of a table row (DataTable). */
+.dt-card-actions { display: flex; gap: 8px; padding-top: 11px; margin-top: 4px; border-top: 1px solid var(--color-divider); }
+.dt-card-actions .btn { flex: 1; min-height: 44px; font-size: var(--fs-body); padding-inline: 14px; }
+.dt-card-actions .input { min-height: 44px; font-size: 16px; }
+
+/* ── dialog ───────────────────────────────────────────────────────────── */
 .dialog-backdrop {
-  position: fixed; inset: 0; z-index: 40; display: grid; place-items: center;
-  padding: var(--space-4); background: color-mix(in srgb, var(--color-neutral-100) 40%, transparent);
+  position: fixed; inset: 0; z-index: 40;
+  display: grid; place-items: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--color-neutral-100) 40%, transparent);
 }
 .dialog {
-  width: min(440px, 100%); display: flex; flex-direction: column; gap: var(--space-3);
-  padding: var(--space-4); border-radius: var(--radius-lg);
-  background: var(--color-surface); box-shadow: var(--shadow-lg);
-  max-height: calc(100vh - 2 * var(--space-4)); overflow: auto;
+  width: min(440px, 100%);
+  display: flex; flex-direction: column; gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lg);
+  max-height: calc(100vh - 2 * var(--space-4));
+  max-height: calc(100dvh - 2 * var(--space-4));
+  overflow: auto;
+  overscroll-behavior: contain;
 }
-.dialog-title { font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-size: 20px; }
-.dialog-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-2); }
+.dialog-title { font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-size: var(--fs-base-lead); }
+.dialog-actions {
+  display: flex; justify-content: flex-end; gap: var(--space-2); flex-wrap: wrap;
+  margin-top: var(--space-2);
+  /* the primary action never scrolls out of a long dialog */
+  position: sticky; bottom: calc(-1 * var(--space-4));
+  padding-block: var(--space-2);
+  background: var(--color-surface);
+}
+/* Phone: dialogs become bottom sheets, bounded by dvh with safe-area padding,
+   so the payment's "Complete sale" button is never under the browser chrome. */
+@media (max-width: 39.99rem) {
+  .dialog-backdrop { padding: 0; place-items: end stretch; }
+  .dialog {
+    width: 100%;
+    max-height: 92dvh;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    padding-bottom: calc(var(--space-4) + var(--safe-bottom));
+  }
+  .dialog-actions { flex-direction: column-reverse; }
+  .dialog-actions > .btn { width: 100%; }
+}
 
-/* — RTL helpers — */
-[dir='rtl'] .ltr-cell { direction: ltr; text-align: start; }
+/* ── app shell ────────────────────────────────────────────────────────── */
+.app-shell {
+  display: flex; flex-direction: column;
+  height: 100vh;   /* fallback */
+  height: 100dvh;  /* reclaims the strip under mobile browser chrome */
+  overflow: hidden;
+}
+.app-body { flex: 1; min-height: 0; display: flex; }
+.app-main { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+.app-scroll {
+  flex: 1; min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  padding: var(--gap) var(--gutter);
+  padding-bottom: calc(var(--gap) + var(--safe-bottom));
+}
+.offline-banner {
+  flex: none; display: flex; align-items: center; gap: 8px;
+  padding: 7px var(--gutter);
+  font-size: var(--fs-meta);
+  background: var(--color-accent-800); color: var(--color-accent-100);
+}
+
+/* top bar — phone + tablet only */
+.topbar {
+  flex: none;
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 10px;
+  padding-top: calc(6px + env(safe-area-inset-top, 0px));
+  background: var(--color-surface);
+  border-block-end: 1px solid var(--color-divider);
+}
+.topbar-titles { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.topbar-brand { font-size: var(--fs-lead); font-weight: 500; }
+.topbar-branch { font-size: var(--fs-micro); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (min-width: 64rem) { .topbar { display: none; } }
+
+/* sidebar / off-canvas drawer */
+.sidebar {
+  display: flex; flex-direction: column;
+  width: 264px; max-width: 86vw;
+  background: var(--color-surface);
+  border-inline-end: 1px solid var(--color-divider);
+  position: fixed;
+  inset-block: 0;
+  inset-inline-start: 0;  /* right in RTL, left in LTR */
+  z-index: 55;
+  box-shadow: var(--shadow-lg);
+  padding-block-start: env(safe-area-inset-top, 0px);
+  padding-block-end: var(--safe-bottom);
+  /* Slide direction is a sign, flipped by dir. :where() adds zero
+     specificity so the [data-open] rule below always wins. */
+  --drawer-slide: -100%;
+  transform: translateX(var(--drawer-slide));
+  transition: transform 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+}
+:where([dir='rtl']) .sidebar { --drawer-slide: 100%; }
+.sidebar[data-open='true'] { --drawer-slide: 0%; }
+@media (min-width: 64rem) {
+  .sidebar {
+    position: static;
+    transform: none; transition: none;
+    box-shadow: none;
+    width: 232px; max-width: none;
+    padding-block: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar, .drawer-backdrop { transition: none; }
+}
+.drawer-backdrop {
+  position: fixed; inset: 0; z-index: 54;
+  background: color-mix(in srgb, var(--color-neutral-100) 45%, transparent);
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.22s ease;
+}
+.drawer-backdrop[data-open='true'] { opacity: 1; pointer-events: auto; }
+
+/* Three bands: fixed head, SCROLLING nav, fixed foot. The foot holds the
+   branch selector and Logout, so they are always on screen. */
+.sidebar-head { flex: none; display: flex; align-items: flex-start; gap: 8px; padding: 14px 14px 10px; }
+.sidebar-nav {
+  flex: 1; min-height: 0;
+  overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  padding: 0 10px 8px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.sidebar-foot {
+  flex: none;
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 8px 12px 12px;
+  border-block-start: 1px solid var(--color-divider);
+  background: var(--color-surface);
+}
+.nav-group-label {
+  font-size: var(--fs-micro);
+  letter-spacing: var(--tracking-kicker);
+  text-transform: uppercase;
+  font-weight: var(--label-weight);
+  padding: 12px 10px 4px;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+}
+.nav-link {
+  display: flex; align-items: center; gap: 10px;
+  min-height: var(--tap);
+  padding: 0 10px;
+  border: 0; border-radius: var(--radius-md);
+  font-size: var(--fs-body); text-align: start; text-decoration: none;
+  color: var(--color-text); background: transparent;
+  touch-action: manipulation;
+}
+.nav-link:hover { background: color-mix(in srgb, var(--color-text) 6%, transparent); }
+.nav-link[aria-current='page'] { background: var(--color-accent-800); color: var(--color-accent-100); }
+.offline-toggle {
+  display: flex; align-items: center; gap: 8px;
+  min-height: var(--tap);
+  padding: 0 10px;
+  border: 1px solid var(--color-divider); border-radius: var(--radius-md);
+  background: transparent; cursor: pointer;
+  font-size: var(--fs-meta); color: var(--color-text);
+  touch-action: manipulation;
+}
+.offline-toggle[data-offline='true'] { color: var(--color-accent-300); }
+
+/* ── POS phone layer ──────────────────────────────────────────────────── */
+.pos-bar {
+  position: fixed; inset-inline: 0; bottom: 0; z-index: 25;
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px calc(10px + var(--safe-bottom));
+  background: var(--color-surface); box-shadow: var(--shadow-md);
+  transition: transform 0.18s ease;
+}
+.pos-bar[data-hidden='true'] { transform: translateY(110%); }
+.pos-sheet-backdrop {
+  position: fixed; inset: 0; z-index: 30;
+  background: color-mix(in srgb, var(--color-neutral-100) 34%, transparent);
+  opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+}
+.pos-sheet-backdrop[data-open='true'] { opacity: 1; pointer-events: auto; }
+.pos-sheet {
+  position: fixed; inset-inline: 0; bottom: 0; z-index: 31;
+  display: flex; flex-direction: column;
+  max-height: 82dvh;
+  background: var(--color-surface);
+  border-start-start-radius: var(--radius-lg); border-start-end-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(101%);
+  transition: transform 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+  visibility: hidden;
+}
+.pos-sheet[data-open='true'] { transform: translateY(0); visibility: visible; }

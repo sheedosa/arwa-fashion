@@ -32,32 +32,35 @@ export function LoginScreen() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24 }}>
+    <div style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', padding: 'var(--gap) var(--gutter)' }}>
       <div style={{ width: 'min(760px,100%)', display: 'flex', flexDirection: 'column', gap: 28 }}>
         <div>
-          <div style={{ fontSize: 12.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--color-accent)', marginBottom: 8 }}>
+          {/* Latin kicker: tracking is fine here because the line is mostly Latin; the
+              Arabic half is short and reads as a label. */}
+          <div style={{ fontSize: 'var(--fs-micro)', letterSpacing: 'var(--tracking-kicker)', textTransform: 'uppercase', color: 'var(--color-accent)', marginBottom: 8 }}>
             Arwa Fashion · نظام الإدارة
           </div>
-          <h1 style={{ fontSize: 38, margin: '0 0 6px' }}>{t.brand}</h1>
+          <h1 style={{ margin: '0 0 6px' }}>{t.brand}</h1>
           <p className="text-muted" style={{ margin: 0 }}>{t.tagline}</p>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: 12 }}>
           {ROLES.map((r) => (
             <button
               key={r.role}
+              type="button"
               onClick={() => go(r.role)}
               style={{
                 textAlign: 'start', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 8,
-                padding: 18, background: 'var(--color-surface)', border: '1px solid var(--color-divider)',
+                padding: 18, minHeight: 44, background: 'var(--color-surface)', border: '1px solid var(--color-divider)',
                 borderRadius: 'var(--radius-lg)', color: 'var(--color-text)',
               }}
               onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--color-accent)')}
               onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--color-divider)')}
             >
               <r.icon size={24} style={{ color: 'var(--color-accent)' }} />
-              <div style={{ fontSize: 17.5, fontWeight: 500 }}>{titleFor[r.role]}</div>
-              <div className="text-muted" style={{ fontSize: 13.5 }}>{r.name} · {branchFor[r.role]}</div>
-              <span style={{ fontSize: 14.5, color: 'var(--color-accent)', marginTop: 4 }}>{t.loginAs} ←</span>
+              <div style={{ fontSize: 'var(--fs-lead)', fontWeight: 500 }}>{titleFor[r.role]}</div>
+              <div className="text-muted" style={{ fontSize: 'var(--fs-meta)' }}>{r.name} · {branchFor[r.role]}</div>
+              <span style={{ fontSize: 'var(--fs-body)', color: 'var(--color-accent)', marginTop: 4 }}>{t.loginAs} ←</span>
             </button>
           ))}
         </div>

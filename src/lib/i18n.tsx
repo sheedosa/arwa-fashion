@@ -40,7 +40,7 @@ const dict = {
     syncedMsg: 'تمت مزامنة المبيعات المعلقة', added: 'أُضيف', noStock: 'الكمية غير متوفرة بهذا الفرع',
     trDone: 'تم تحديث التحويل', custAdded: 'أُضيف العميل', prodAdded: 'أُنشئ المنتج بكل المتغيرات',
     closedT: 'أُقفل صندوق اليوم', export: 'تصدير CSV', all: 'الكل', noResults: 'لا توجد نتائج مطابقة',
-    navSell: 'البيع', navStock: 'المخزون', navManage: 'الإدارة',
+    navSell: 'البيع', navStock: 'المخزون', navManage: 'الإدارة', menu: 'القائمة', close: 'إغلاق', removeLine: 'حذف', details: 'تفاصيل',
     // Phase 2
     suppliers: 'الموردون', newPo: 'أمر شراء جديد', supplier: 'المورد', poId: 'رقم الأمر', ordered: 'مطلوب',
     received: 'مستلم', unitCost: 'سعر الوحدة $', landedCost: 'التكلفة الواصلة $', freight: 'الشحن $',
@@ -93,7 +93,7 @@ const dict = {
     syncedMsg: 'Queued sales synced', added: 'Added', noStock: 'Not in stock at this branch',
     trDone: 'Transfer updated', custAdded: 'Customer added', prodAdded: 'Product created with all variants',
     closedT: 'Day closed', export: 'Export CSV', all: 'All', noResults: 'No matching items',
-    navSell: 'Selling', navStock: 'Stock', navManage: 'Manage',
+    navSell: 'Selling', navStock: 'Stock', navManage: 'Manage', menu: 'Menu', close: 'Close', removeLine: 'Remove', details: 'Details',
     // Phase 2
     suppliers: 'Suppliers', newPo: 'New purchase order', supplier: 'Supplier', poId: 'PO #', ordered: 'Ordered',
     received: 'Received', unitCost: 'Unit cost $', landedCost: 'Landed cost $', freight: 'Freight $',

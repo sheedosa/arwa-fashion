@@ -46,33 +46,37 @@ export function PaymentDialog({ onClose, onComplete }: { onClose: () => void; on
 
   return (
     <Dialog title={t.payTitle} onClose={onClose} width={480}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '10px 12px', borderRadius: 'var(--radius-md)', background: 'var(--color-accent-800)' }}>
-        <span style={{ fontSize: 14.5 }}>{t.total}</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, padding: '10px 12px', borderRadius: 'var(--radius-md)', background: 'var(--color-accent-800)' }}>
+        <span style={{ fontSize: 'var(--fs-body)' }}>{t.total}</span>
         <span style={{ textAlign: 'end' }}>
           <span style={{ fontSize: 24, color: 'var(--color-accent-100)' }}>{fmtUsd(total)}</span>{' '}
-          <span className="text-muted" style={{ fontSize: 13.5 }}>≈ {fmtLyd(total * fxRate, lang)}</span>
+          <span className="text-muted" style={{ fontSize: 'var(--fs-meta)' }}>≈ {fmtLyd(total * fxRate, lang)}</span>
         </span>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 10 }}>
         <Field label={t.payUsdL}>
-          <Input style={{ direction: 'ltr', fontSize: 17.5 }} value={payUsd} onChange={(e) => setPayUsd(e.target.value)} />
-          <Button variant="ghost" style={{ fontSize: 13, marginTop: 3 }} onClick={() => setPayUsd((Math.round(Math.max(0, total - pl / fxRate) * 100) / 100).toFixed(2))}>{t.exact} $</Button>
+          <Input kind="money" style={{ fontSize: 'var(--fs-num)' }} value={payUsd} onChange={(e) => setPayUsd(e.target.value)} />
+          <Button variant="ghost" style={{ fontSize: 'var(--fs-meta)', marginTop: 3 }} onClick={() => setPayUsd((Math.round(Math.max(0, total - pl / fxRate) * 100) / 100).toFixed(2))}>{t.exact} $</Button>
         </Field>
         <Field label={t.payLydL}>
-          <Input style={{ direction: 'ltr', fontSize: 17.5 }} value={payLyd} onChange={(e) => setPayLyd(e.target.value)} />
-          <Button variant="ghost" style={{ fontSize: 13, marginTop: 3 }} onClick={() => setPayLyd(String(Math.ceil(Math.max(0, total - pu) * fxRate)))}>{t.exact} د.ل</Button>
+          <Input kind="money" style={{ fontSize: 'var(--fs-num)' }} value={payLyd} onChange={(e) => setPayLyd(e.target.value)} />
+          <Button variant="ghost" style={{ fontSize: 'var(--fs-meta)', marginTop: 3 }} onClick={() => setPayLyd(String(Math.ceil(Math.max(0, total - pu) * fxRate)))}>{t.exact} د.ل</Button>
         </Field>
       </div>
       <Field label={t.method}>
-        <div style={{ display: 'flex', gap: 6 }}>
-          {methods.map((m) => <Chip key={m} label={t[m]} selected={method === m} onClick={() => setMethod(m)} />)}
+        <div role="radiogroup" aria-label={t.method} style={{ display: 'flex', gap: 6 }}>
+          {methods.map((m) => (
+            <div key={m} style={{ flex: 1, display: 'flex' }}>
+              <Chip label={<span style={{ width: '100%' }}>{t[m]}</span>} selected={method === m} onClick={() => setMethod(m)} />
+            </div>
+          ))}
         </div>
       </Field>
       <Field label={t.custPhone}>
-        <Input style={{ direction: 'ltr' }} value={custPhone} onChange={(e) => setCustPhone(e.target.value)} placeholder="+218 9x xxx xxxx" />
-        <span style={{ fontSize: 13, color: 'var(--color-accent-300)' }}>{custHint}</span>
+        <Input kind="tel" value={custPhone} onChange={(e) => setCustPhone(e.target.value)} placeholder="+218 9x xxx xxxx" />
+        <span style={{ fontSize: 'var(--fs-meta)', color: 'var(--color-accent-300)' }}>{custHint}</span>
       </Field>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 14.5, paddingTop: 4, borderTop: '1px solid var(--color-divider)' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 'var(--fs-body)', paddingTop: 4, borderTop: '1px solid var(--color-divider)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}><span className="text-muted">{t.paid}</span><span>{fmtUsd(paid)}</span></div>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <span className="text-muted">{t.remaining}</span>
@@ -82,7 +86,7 @@ export function PaymentDialog({ onClose, onComplete }: { onClose: () => void; on
           <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 500 }}><span>{t.change}</span><span style={{ color: 'var(--color-accent-300)' }}>{changeStr}</span></div>
         )}
       </div>
-      <Button variant="primary" block style={{ minHeight: 46, fontSize: 16.5 }} onClick={complete} disabled={cannotComplete}>
+      <Button variant="primary" block style={{ minHeight: 48, fontSize: 16.5 }} onClick={complete} disabled={cannotComplete}>
         <Check />{t.complete}
       </Button>
     </Dialog>

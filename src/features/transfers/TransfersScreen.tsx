@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { DownloadSimple } from '@phosphor-icons/react'
 import { useI18n, useNm } from '../../lib/i18n'
 import { useStore } from '../../store/useStore'
+import { useBreakpoint } from '../../lib/useMediaQuery'
 import { BRANCHES } from '../../lib/mockData'
 import { variantMeta, productName } from '../../lib/variantDisplay'
 import { exportCsv } from '../../lib/csv'
@@ -9,17 +10,15 @@ import { Field, Input, Select } from '../../components/ui/Field'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { Tag } from '../../components/ui/Tag'
-import type { BranchId, TransferStatus } from '../../lib/types'
+import { DataTable, type Column } from '../../components/ui/DataTable'
+import type { BranchId, Transfer, TransferStatus } from '../../lib/types'
 
-const STATUS_STYLE: Record<TransferStatus, { variant: 'neutral' | 'accent' | 'accent-2' }> = {
-  requested: { variant: 'neutral' },
-  sent: { variant: 'accent' },
-  received: { variant: 'accent-2' },
-}
+const STATUS_STYLE: Record<TransferStatus, 'neutral' | 'accent' | 'accent-2'> = { requested: 'neutral', sent: 'accent', received: 'accent-2' }
 
 export function TransfersScreen() {
   const { t, lang } = useI18n()
   const nm = useNm()
+  const isDesktop = useBreakpoint('laptop')
   const transfers = useStore((s) => s.transfers)
   const variants = useStore((s) => s.variants)
   const products = useStore((s) => s.products)
@@ -35,79 +34,62 @@ export function TransfersScreen() {
   const cannotRequest = from === to || !(parseInt(qty) > 0)
   const statusLabel: Record<TransferStatus, string> = { requested: t.statusReq, sent: t.statusSent, received: t.statusRec }
   const arrow = lang === 'ar' ? '←' : '→'
+  const branchName = (id: BranchId) => nm(BRANCHES.find((b) => b.id === id)!.name)
 
-  const submit = () => {
-    requestTransfer(from, to, sku, parseInt(qty))
-    flash(t.trDone)
-  }
-
+  const submit = () => { requestTransfer(from, to, sku, parseInt(qty)); flash(t.trDone) }
   const act = (id: string) => { advanceTransfer(id); flash(t.trDone) }
+
+  const columns: Column<Transfer>[] = [
+    { key: 'id', header: '#', role: 'meta', ltr: true, tdClassName: 'text-muted', cell: (r) => r.id },
+    { key: 'date', header: t.dateL, role: 'meta', tdClassName: 'text-muted', tdStyle: { fontSize: 'var(--fs-meta)' }, cell: (r) => r.date },
+    { key: 'item', header: t.item, role: 'title', cell: (r) => {
+      const v = variants.find((vv) => vv.sku === r.sku)!
+      const p = products.find((pp) => pp.code === v.productCode)!
+      return `${productName(lang, p)} · ${variantMeta(lang, v)}`
+    } },
+    { key: 'route', header: `${t.from} ${arrow} ${t.to}`, cell: (r) => `${branchName(r.from)} ${arrow} ${branchName(r.to)}` },
+    { key: 'qty', header: t.qty, cell: (r) => r.qty },
+    { key: 'status', header: t.status, cell: (r) => <Tag variant={STATUS_STYLE[r.status]}>{statusLabel[r.status]}</Tag> },
+    { key: 'act', header: '', role: 'action', cell: (r) => r.status !== 'received'
+      ? <Button variant="primary" style={{ fontSize: 'var(--fs-meta)' }} onClick={() => act(r.id)}>{r.status === 'requested' ? t.send : t.receive}</Button>
+      : null },
+  ]
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }} data-screen-label="Transfers">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <h3 style={{ margin: 0, flex: 1 }}>{t.transfers}</h3>
-        <Button
-          variant="secondary"
-          onClick={() => exportCsv('transfers.csv', ['ID', 'Date', 'From', 'To', 'SKU', 'Qty', 'Status'], transfers.map((x) => [x.id, x.date, x.from, x.to, x.sku, x.qty, x.status]))}
-        >
+        <Button variant="secondary" onClick={() => exportCsv('transfers.csv', ['ID', 'Date', 'From', 'To', 'SKU', 'Qty', 'Status'], transfers.map((x) => [x.id, x.date, x.from, x.to, x.sku, x.qty, x.status]))}>
           <DownloadSimple />{t.export}
         </Button>
       </div>
       <Card style={{ gap: 10 }}>
         <span className="card-kicker">{t.newTransfer}</span>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'end' }}>
-          <Field label={t.from}>
+          <Field label={t.from} style={{ flex: '1 1 130px' }}>
             <Select value={from} onChange={(e) => setFrom(e.target.value as BranchId)}>
               {BRANCHES.map((b) => <option key={b.id} value={b.id}>{nm(b.name)}</option>)}
             </Select>
           </Field>
-          <Field label={t.to}>
+          <Field label={t.to} style={{ flex: '1 1 130px' }}>
             <Select value={to} onChange={(e) => setTo(e.target.value as BranchId)}>
               {BRANCHES.map((b) => <option key={b.id} value={b.id}>{nm(b.name)}</option>)}
             </Select>
           </Field>
-          <Field label={t.item}>
-            <Select style={{ minWidth: 220 }} value={sku} onChange={(e) => setSku(e.target.value)}>
+          <Field label={t.item} style={{ flex: '2 1 220px', minWidth: 0 }}>
+            <Select value={sku} onChange={(e) => setSku(e.target.value)}>
               {variants.map((v) => {
                 const p = products.find((pp) => pp.code === v.productCode)!
                 return <option key={v.sku} value={v.sku}>{productName(lang, p)} — {variantMeta(lang, v)}</option>
               })}
             </Select>
           </Field>
-          <Field label={t.qty}><Input style={{ width: 80 }} value={qty} onChange={(e) => setQty(e.target.value)} /></Field>
+          <Field label={t.qty} style={{ flex: '0 1 90px' }}><Input kind="qty" value={qty} onChange={(e) => setQty(e.target.value)} /></Field>
           <Button variant="primary" onClick={submit} disabled={cannotRequest}>{t.request}</Button>
         </div>
       </Card>
-      <Card style={{ padding: '6px 14px' }}>
-        <table className="table">
-          <thead>
-            <tr><th>#</th><th>{t.dateL}</th><th>{t.from} {arrow} {t.to}</th><th>{t.item}</th><th>{t.qty}</th><th>{t.status}</th><th></th></tr>
-          </thead>
-          <tbody>
-            {transfers.map((r) => {
-              const v = variants.find((vv) => vv.sku === r.sku)!
-              const p = products.find((pp) => pp.code === v.productCode)!
-              return (
-                <tr key={r.id}>
-                  <td className="ltr-cell text-muted">{r.id}</td>
-                  <td className="text-muted" style={{ fontSize: 13.5 }}>{r.date}</td>
-                  <td style={{ fontSize: 14.5 }}>{nm(BRANCHES.find((b) => b.id === r.from)!.name)} {arrow} {nm(BRANCHES.find((b) => b.id === r.to)!.name)}</td>
-                  <td style={{ fontSize: 14.5 }}>{productName(lang, p)} · {variantMeta(lang, v)}</td>
-                  <td>{r.qty}</td>
-                  <td><Tag variant={STATUS_STYLE[r.status].variant}>{statusLabel[r.status]}</Tag></td>
-                  <td>
-                    {r.status !== 'received' && (
-                      <Button variant="primary" style={{ fontSize: 13.5, padding: '4px 12px' }} onClick={() => act(r.id)}>
-                        {r.status === 'requested' ? t.send : t.receive}
-                      </Button>
-                    )}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+      <Card style={{ padding: isDesktop ? '6px 14px' : 0, background: isDesktop ? undefined : 'transparent' }}>
+        <DataTable rows={transfers} columns={columns} rowKey={(r) => r.id} stacked={!isDesktop} />
       </Card>
     </div>
   )

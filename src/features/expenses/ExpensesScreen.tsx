@@ -1,14 +1,16 @@
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { Plus } from '@phosphor-icons/react'
 import { useI18n, useNm } from '../../lib/i18n'
 import { useStore } from '../../store/useStore'
+import { useIsPhone } from '../../lib/useMediaQuery'
 import { BRANCHES, todayStr } from '../../lib/mockData'
 import { fmtUsd } from '../../lib/currency'
 import { monthTotals } from '../../lib/analytics'
 import { Field, Input, Select } from '../../components/ui/Field'
 import { Button } from '../../components/ui/Button'
 import { Card, CardKicker } from '../../components/ui/Card'
-import type { BranchId, ExpenseCategory } from '../../lib/types'
+import { DataTable, type Column } from '../../components/ui/DataTable'
+import type { BranchId, Expense, ExpenseCategory } from '../../lib/types'
 
 const CATEGORIES: ExpenseCategory[] = ['rent', 'salaries', 'utilities', 'marketing', 'maintenance', 'other']
 const CAT_KEY: Record<ExpenseCategory, 'catRent' | 'catSalaries' | 'catUtilities' | 'catMarketing' | 'catMaintenance' | 'catOther'> = {
@@ -18,6 +20,7 @@ const CAT_KEY: Record<ExpenseCategory, 'catRent' | 'catSalaries' | 'catUtilities
 export function ExpensesScreen() {
   const { t } = useI18n()
   const nm = useNm()
+  const isPhone = useIsPhone()
   const user = useStore((s) => s.user)
   const branch = useStore((s) => s.branch)
   const expenses = useStore((s) => s.expenses)
@@ -47,6 +50,14 @@ export function ExpensesScreen() {
 
   const rows = isOwner ? expenses : expenses.filter((e) => e.branchId === branch)
 
+  const columns: Column<Expense>[] = [
+    { key: 'branch', header: t.branch, hidden: !isOwner, role: 'meta', tdClassName: 'text-muted', cell: (e) => nm(BRANCHES.find((b) => b.id === e.branchId)!.name) },
+    { key: 'date', header: t.dateL, role: 'meta', tdClassName: 'text-muted', tdStyle: { fontSize: 'var(--fs-meta)' }, cell: (e) => e.date },
+    { key: 'cat', header: t.category, cell: (e) => t[CAT_KEY[e.category]] },
+    { key: 'desc', header: t.description, role: 'title', tdClassName: 'text-muted', cell: (e) => e.description },
+    { key: 'amount', header: t.amount, cell: (e) => fmtUsd(e.amountUsd) },
+  ]
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }} data-screen-label="Expenses">
       <h3 style={{ margin: 0 }}>{t.expenses}</h3>
@@ -54,24 +65,24 @@ export function ExpensesScreen() {
         <span className="card-kicker">{t.newExpense}</span>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'end' }}>
           {isOwner && (
-            <Field label={t.branch}>
+            <Field label={t.branch} style={{ flex: '1 1 140px' }}>
               <Select value={expBranch} onChange={(e) => setExpBranch(e.target.value as BranchId)}>
                 {BRANCHES.map((b) => <option key={b.id} value={b.id}>{nm(b.name)}</option>)}
               </Select>
             </Field>
           )}
-          <Field label={t.category}>
+          <Field label={t.category} style={{ flex: '1 1 140px' }}>
             <Select value={category} onChange={(e) => setCategory(e.target.value as ExpenseCategory)}>
               {CATEGORIES.map((c) => <option key={c} value={c}>{t[CAT_KEY[c]]}</option>)}
             </Select>
           </Field>
-          <Field label={t.description} style={{ flex: 1, minWidth: 200 }}><Input value={description} onChange={(e) => setDescription(e.target.value)} /></Field>
-          <Field label={t.amount}><Input style={{ direction: 'ltr', width: 110 }} value={amount} onChange={(e) => setAmount(e.target.value)} /></Field>
+          <Field label={t.description} style={{ flex: '2 1 200px' }}><Input value={description} onChange={(e) => setDescription(e.target.value)} /></Field>
+          <Field label={t.amount} style={{ flex: '1 1 110px' }}><Input kind="money" value={amount} onChange={(e) => setAmount(e.target.value)} /></Field>
           <Button variant="primary" onClick={add} disabled={!canAdd}><Plus />{t.addExpense}</Button>
         </div>
       </Card>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+      <div className="grid-2" style={{ '--grid-2-cols': '1fr 1fr' } as CSSProperties}>
         <Card style={{ padding: '16px 18px', gap: 8 }}>
           <CardKicker>{t.pnl} · {t.consolidated} · {t.thisMonth}</CardKicker>
           <PnlRow label={t.revenue} value={fmtUsd(month.totalSales)} />
@@ -84,27 +95,13 @@ export function ExpensesScreen() {
           <CardKicker>{t.perBranch} · {t.netProfit}</CardKicker>
           {BRANCHES.map((b) => {
             const br = month.byBranch[b.id]
-            const net = br.revenue - br.cost - expenseByBranch[b.id]
-            return <PnlRow key={b.id} label={nm(b.name)} value={fmtUsd(net)} />
+            return <PnlRow key={b.id} label={nm(b.name)} value={fmtUsd(br.revenue - br.cost - expenseByBranch[b.id])} />
           })}
         </Card>
       </div>
 
-      <Card style={{ padding: '6px 14px' }}>
-        <table className="table">
-          <thead><tr>{isOwner && <th>{t.branch}</th>}<th>{t.dateL}</th><th>{t.category}</th><th>{t.description}</th><th>{t.amount}</th></tr></thead>
-          <tbody>
-            {rows.map((e) => (
-              <tr key={e.id}>
-                {isOwner && <td className="text-muted" style={{ fontSize: 14 }}>{nm(BRANCHES.find((b) => b.id === e.branchId)!.name)}</td>}
-                <td className="text-muted" style={{ fontSize: 13.5 }}>{e.date}</td>
-                <td>{t[CAT_KEY[e.category]]}</td>
-                <td className="text-muted" style={{ fontSize: 14 }}>{e.description}</td>
-                <td>{fmtUsd(e.amountUsd)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <Card style={{ padding: isPhone ? 0 : '6px 14px', background: isPhone ? 'transparent' : undefined }}>
+        <DataTable rows={rows} columns={columns} rowKey={(e) => e.id} />
       </Card>
     </div>
   )
@@ -112,7 +109,7 @@ export function ExpensesScreen() {
 
 function PnlRow({ label, value, bold, accent }: { label: string; value: string; bold?: boolean; accent?: boolean }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: bold ? 16 : 14.5, fontWeight: bold ? 500 : 400 }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: bold ? 'var(--fs-lead)' : 'var(--fs-body)', fontWeight: bold ? 500 : 400 }}>
       <span className={accent ? undefined : 'text-muted'}>{label}</span>
       <span style={{ color: accent ? 'var(--color-accent-300)' : undefined }}>{value}</span>
     </div>

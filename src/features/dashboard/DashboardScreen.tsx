@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import { useI18n, useNm } from '../../lib/i18n'
 import { useStore } from '../../store/useStore'
 import { BRANCHES } from '../../lib/mockData'
@@ -27,54 +28,60 @@ export function DashboardScreen() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }} data-screen-label="Dashboard">
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
         <h3 style={{ margin: 0 }}>{t.dashboard}</h3>
-        <span className="text-muted" style={{ fontSize: 13.5 }}>{t.allUsd} · {lang === 'ar' ? 'سعر الصرف اليوم: 1$ = ' : "Today's rate: $1 = "}{fxRate.toFixed(2)}{lang === 'ar' ? ' د.ل' : ' LYD'}</span>
+        <span className="text-muted" style={{ fontSize: 'var(--fs-meta)' }}>{t.allUsd} · {lang === 'ar' ? 'سعر الصرف اليوم: 1$ = ' : "Today's rate: $1 = "}{fxRate.toFixed(2)}{lang === 'ar' ? ' د.ل' : ' LYD'}</span>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(230px,1fr))', gap: 14 }}>
+      <div className="grid-auto" style={{ '--grid-min': '210px' } as CSSProperties}>
         {kpis.map((k) => (
           <Card key={k.label} style={{ padding: '18px 20px', gap: 8 }}>
             <CardKicker>{k.label}</CardKicker>
-            <div style={{ fontSize: 34, fontWeight: 500 }}>{k.value}</div>
+            <div style={{ fontSize: 'clamp(26px, 7vw, 34px)', fontWeight: 500, lineHeight: 1.1 }}>{k.value}</div>
             <span className="card-meta">{k.sub}</span>
           </Card>
         ))}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 14, alignItems: 'stretch' }}>
+      {/* Comparison tables: kept as tables on every size (stacking them would
+          destroy the cross-row comparison they exist for); the grid stacks instead. */}
+      <div className="grid-2" style={{ '--grid-2-cols': '1.4fr 1fr' } as CSSProperties}>
         <Card>
           <CardKicker>{t.topSellers}</CardKicker>
-          <table className="table">
-            <thead><tr><th>{t.style}</th><th>{t.product}</th><th>{t.units}</th><th>{t.revenue}</th></tr></thead>
-            <tbody>
-              {top.map((r) => (
-                <tr key={r.code}>
-                  <td className="ltr-cell text-muted" style={{ fontSize: 13.5 }}>{r.code}</td>
-                  <td>{productName(lang, r.product)}</td>
-                  <td>{r.units}</td>
-                  <td>{fmtUsd(r.revenue)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="table-scroll">
+            <table className="table">
+              <thead><tr><th>{t.style}</th><th>{t.product}</th><th>{t.units}</th><th>{t.revenue}</th></tr></thead>
+              <tbody>
+                {top.map((r) => (
+                  <tr key={r.code}>
+                    <td className="ltr-cell text-muted" style={{ fontSize: 'var(--fs-meta)' }}>{r.code}</td>
+                    <td>{productName(lang, r.product)}</td>
+                    <td>{r.units}</td>
+                    <td>{fmtUsd(r.revenue)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </Card>
         <Card>
           <CardKicker>{t.byBranch}</CardKicker>
-          <table className="table">
-            <thead><tr><th>{t.branch}</th><th>{t.revenue}</th><th>{t.units}</th><th>{t.margin}</th></tr></thead>
-            <tbody>
-              {BRANCHES.map((b) => {
-                const row = month.byBranch[b.id]
-                return (
-                  <tr key={b.id}>
-                    <td>{nm(b.name)}</td>
-                    <td>{fmtUsd(row.revenue)}</td>
-                    <td>{row.units}</td>
-                    <td>{fmtUsd(row.revenue - row.cost)}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+          <div className="table-scroll">
+            <table className="table">
+              <thead><tr><th>{t.branch}</th><th>{t.revenue}</th><th>{t.units}</th><th>{t.margin}</th></tr></thead>
+              <tbody>
+                {BRANCHES.map((b) => {
+                  const row = month.byBranch[b.id]
+                  return (
+                    <tr key={b.id}>
+                      <td>{nm(b.name)}</td>
+                      <td>{fmtUsd(row.revenue)}</td>
+                      <td>{row.units}</td>
+                      <td>{fmtUsd(row.revenue - row.cost)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </Card>
       </div>
     </div>
