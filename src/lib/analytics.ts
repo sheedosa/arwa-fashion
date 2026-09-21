@@ -158,3 +158,14 @@ export function movementLabel(lang: 'ar' | 'en', type: StockMovement['type']) {
   } as const
   return lang === 'ar' ? map[type].ar : map[type].en
 }
+
+/** Free-text movement reasons the store writes, localised for the ledger view. */
+export function reasonLabel(lang: 'ar' | 'en', reason?: string): string | null {
+  if (!reason) return null
+  const map: Record<string, { ar: string; en: string }> = {
+    'opening stock': { ar: 'رصيد افتتاحي', en: 'Opening stock' },
+    'stock count': { ar: 'جرد', en: 'Stock count' },
+  }
+  const hit = map[reason]
+  return hit ? (lang === 'ar' ? hit.ar : hit.en) : reason
+}

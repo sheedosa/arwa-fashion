@@ -3,6 +3,7 @@ import { useI18n, useNm } from '../../lib/i18n'
 import { COLORS } from '../../lib/mockData'
 import { fmtUsd } from '../../lib/currency'
 import { variantMeta, productName } from '../../lib/variantDisplay'
+import { ProductImage } from '../../components/ui/ProductImage'
 import type { Branch, Product, Variant } from '../../lib/types'
 
 interface Props {
@@ -37,7 +38,7 @@ export function ProductTile({ v, p, qty, other, otherQty, lowStockThreshold, lay
         textAlign: 'start', cursor: 'pointer', display: 'flex',
         flexDirection: row ? 'row' : 'column',
         alignItems: row ? 'center' : undefined,
-        gap: row ? 10 : 5,
+        gap: row ? 10 : 8,
         minHeight: row ? 64 : undefined,
         padding: row ? '10px 14px' : '10px 12px',
         background: 'var(--color-surface)', border: '1px solid var(--color-divider)',
@@ -47,18 +48,23 @@ export function ProductTile({ v, p, qty, other, otherQty, lowStockThreshold, lay
       onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--color-accent)')}
       onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--color-divider)')}
     >
-      {row && swatch(14)}
-      <span style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 0 }}>
-        <span style={{ fontSize: row ? 'var(--fs-body)' : 14.5, fontWeight: 500, lineHeight: 1.3 }}>{productName(lang, p)}</span>
-        <span className="text-muted" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: row ? 'var(--fs-meta)' : 12.5 }}>
-          {!row && swatch(10)}
-          {variantMeta(lang, v)}
-        </span>
-        {qty === 0 && other.length > 0 && (
-          <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--color-accent-300)' }}>
-            <MapPin style={{ display: 'inline', verticalAlign: '-2px' }} /> {t.elsewhere} {nm(other[0].name)} ({otherQty})
+      {/* The photo leads in both layouts (48px in a row, 56px in a tile); a compact
+          thumbnail rather than a banner keeps the POS grid dense enough to scan. */}
+      {row && <ProductImage src={p.image} size={48} radius="var(--radius-sm)" />}
+      <span style={{ display: 'flex', alignItems: 'center', gap: 10, flex: row ? 1 : undefined, minWidth: 0, width: row ? undefined : '100%' }}>
+        {!row && <ProductImage src={p.image} size={56} radius="var(--radius-sm)" />}
+        <span style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 0 }}>
+          <span style={{ fontSize: row ? 'var(--fs-body)' : 14.5, fontWeight: 500, lineHeight: 1.3 }}>{productName(lang, p)}</span>
+          <span className="text-muted" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: row ? 'var(--fs-meta)' : 12.5 }}>
+            {swatch(10)}
+            {variantMeta(lang, v)}
           </span>
-        )}
+          {qty === 0 && other.length > 0 && (
+            <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--color-accent-300)' }}>
+              <MapPin style={{ display: 'inline', verticalAlign: '-2px' }} /> {t.elsewhere} {nm(other[0].name)} ({otherQty})
+            </span>
+          )}
+        </span>
       </span>
       <span style={{
         display: 'flex', flex: 'none',

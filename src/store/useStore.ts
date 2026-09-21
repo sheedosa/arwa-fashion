@@ -2,12 +2,13 @@ import { create } from 'zustand'
 import type {
   User, Role, BranchId, InventoryMap, Sale, StockMovement, Customer, Transfer,
   Product, Variant, ColorCode, Size, Supplier, PurchaseOrder, Expense, StockCountSession,
-  ReturnRecord, PayMethod, MovementType,
+  ReturnRecord, PayMethod, MovementType, ItemTypeId,
 } from '../lib/types'
 import {
   PRODUCTS, VARIANTS, seedInventory, seedSales, seedMovements, CUSTOMERS,
   TRANSFERS, SUPPLIERS, seedPurchaseOrders, seedExpenses, seedStockCounts, todayStr,
 } from '../lib/mockData'
+import { ITEM_TYPE_NAMES } from '../lib/itemTypes'
 import { lineTotal, saleTotal } from '../lib/calc'
 
 const DEMO_USERS: Record<Role, User> = {
@@ -21,6 +22,24 @@ let poSeq = 504
 let expSeq = 8
 let scSeq = 13
 let retSeq = 1
+let supSeq = SUPPLIERS.length + 1
+
+/** What the add-item form hands over. Quantities are keyed `${size}-${color}` (not
+ *  SKU — the style code is still being typed while quantities are entered). */
+export interface NewProductDraft {
+  nameAr: string
+  nameEn: string
+  code: string
+  typeId: ItemTypeId
+  supplierId?: string
+  price: number
+  cost: number
+  image?: string
+  sizes: Size[]
+  colors: ColorCode[]
+  branchId: BranchId
+  quantities: Record<string, number>
+}
 
 interface CartLine {
   sku: string
@@ -102,7 +121,10 @@ interface AppState {
   addCustomer: (phone: string, name: string) => void
 
   // actions — products
-  addProduct: (draft: { nameAr: string; nameEn: string; code: string; category: string; price: number; cost: number; sizes: Size[]; colors: ColorCode[] }) => void
+  /** Returns false (and changes nothing) when the style code already exists. */
+  addProduct: (draft: NewProductDraft) => boolean
+  /** Returns the id — an existing supplier's when the name already matches. */
+  addSupplier: (name: string) => string
 
   // actions — reconciliation
   setCashCounted: (branchId: BranchId, field: 'usd' | 'lyd', value: string) => void
@@ -303,26 +325,52 @@ export const useStore = create<AppState>((set, get) => ({
     set({ customers: [...st.customers, { id: st.custSeq, name: name.trim(), phone, points: 0, sizePreferences: '—', lastPurchaseDate: null }], custSeq: st.custSeq + 1 })
   },
 
+  addSupplier: (name) => {
+    const st = get()
+    const clean = name.trim()
+    const found = st.suppliers.find((x) => x.name.trim().toLowerCase() === clean.toLowerCase())
+    if (found) return found.id
+    const sup: Supplier = { id: 'SUP-' + supSeq++, name: clean, country: '—', phone: '—' }
+    set({ suppliers: [...st.suppliers, sup] })
+    return sup.id
+  },
+
   addProduct: (draft) => {
     const st = get()
+    if (!st.user) return false
+    const code = draft.code.trim().toUpperCase()
+    if (!code || st.products.some((p) => p.code.toUpperCase() === code)) return false
+    // Only the owner chooses the destination branch; everyone else stocks their own.
+    const branchId: BranchId = st.user.role === 'owner' ? draft.branchId : st.user.branchId
+    const userName = st.user.name.split(' ')[0]
     const product: Product = {
-      code: draft.code, name: { ar: draft.nameAr, en: draft.nameEn || draft.nameAr },
-      category: { ar: draft.category || '—', en: draft.category || '—' }, season: '—', brand: 'Arwa',
+      code, name: { ar: draft.nameAr.trim(), en: draft.nameEn.trim() || draft.nameAr.trim() },
+      typeId: draft.typeId,
+      // Derived from the type, never free text: category.en stays the grouping key
+      // for POS chips, the margin report and the CSV export.
+      category: { ...ITEM_TYPE_NAMES[draft.typeId] },
+      supplierId: draft.supplierId, image: draft.image,
+      season: '—', brand: 'Arwa',
       price: draft.price, cost: draft.cost || 0, sizes: draft.sizes, colors: draft.colors,
       createdAt: todayStr(), active: true,
     }
     const newVariants: Variant[] = []
     const invPatch: InventoryMap = {}
+    const receipts: { type: MovementType; sku: string; qty: number; branchId: BranchId; userName: string; reason?: string }[] = []
     draft.sizes.forEach((s, si) => draft.colors.forEach((c, ci) => {
-      const sku = `${draft.code}-${s}-${c}`
+      const sku = `${code}-${s}-${c}`
       const barcode = '622' + String(st.products.length).padStart(3, '0') + String(si).padStart(2, '0') + String(ci).padStart(2, '0') + '9'
-      newVariants.push({ sku, productCode: draft.code, size: s, color: c, barcode })
+      newVariants.push({ sku, productCode: code, size: s, color: c, barcode })
       invPatch[sku] = { tr: 0, bn: 0, ms: 0 }
+      const qty = Math.floor(draft.quantities[`${s}-${c}`] || 0)
+      if (qty > 0) receipts.push({ type: 'receipt', sku, qty, branchId, userName, reason: 'opening stock' })
     }))
-    set({
-      products: [...st.products, product], variants: [...st.variants, ...newVariants],
-      inventory: { ...st.inventory, ...invPatch },
-    })
+    // Opening stock is posted as receipt movements on top of the zero rows — the
+    // ledger stays the only thing that ever changes on-hand quantities.
+    const seeded: InventoryMap = { ...st.inventory, ...invPatch }
+    const { inventory, movements } = receipts.length ? applyMoves(seeded, st.movements, receipts) : { inventory: seeded, movements: st.movements }
+    set({ products: [...st.products, product], variants: [...st.variants, ...newVariants], inventory, movements })
+    return true
   },
 
   setCashCounted: (branchId, field, value) => set((st) => ({ cashCounted: { ...st.cashCounted, [branchId]: { ...st.cashCounted[branchId], [field]: value } } })),

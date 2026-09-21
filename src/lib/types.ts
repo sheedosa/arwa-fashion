@@ -5,9 +5,15 @@
 export type Lang = 'ar' | 'en'
 export type Role = 'owner' | 'manager' | 'cashier'
 export type BranchId = 'tr' | 'bn' | 'ms'
-export type ColorCode = 'BLK' | 'WHT' | 'BEG' | 'NVY' | 'MRN' | 'OLV' | 'PNK'
+export type ColorCode = 'BLK' | 'WHT' | 'BEG' | 'NVY' | 'MRN' | 'OLV' | 'PNK' | 'GLD' | 'RED' | 'EMR'
 export type Size = 'S' | 'M' | 'L' | 'XL' | 'ONE'
 export type Currency = 'USD' | 'LYD'
+
+/** The shop's own fixed list of item types (نوع الصنف). Labels live in lib/itemTypes.ts. */
+export type ItemTypeId =
+  | 'cloche-dress' | 'straight-dress' | 'short-dress' | 'straight-dress-train' | 'hayer-dress'
+  | 'simple-dress' | 'kids-dress' | 'evening-trousers' | 'fur-cape-small' | 'fur-cape-large'
+  | 'staqouna' | 'evening-suit'
 export type PayMethod = 'cash' | 'card' | 'bank'
 
 export interface LocalizedText {
@@ -41,7 +47,12 @@ export interface User {
 export interface Product {
   code: string // style code
   name: LocalizedText
+  typeId: ItemTypeId
+  /** Display text of the type — kept as the grouping key for POS chips, reports and CSV. */
   category: LocalizedText
+  supplierId?: string
+  /** One photo per item, a downscaled JPEG data URL (no backend to upload to). */
+  image?: string
   season: string
   brand: string
   description?: string

@@ -8,6 +8,7 @@ import { variantMeta, productName } from '../../lib/variantDisplay'
 import { Input } from '../../components/ui/Field'
 import { Button } from '../../components/ui/Button'
 import { Chip } from '../../components/ui/Tag'
+import { ProductImage } from '../../components/ui/ProductImage'
 import type { Product, Variant } from '../../lib/types'
 
 interface CartLine { sku: string; qty: number; price: number; discountPct: number }
@@ -27,7 +28,8 @@ export function CartLineRow({ l, p, v, compact }: { l: CartLine; p: Product; v: 
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingBottom: 10, borderBottom: '1px solid var(--color-divider)' }}>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <ProductImage src={p.image} size={36} radius="var(--radius-sm)" />
         <span style={{ fontSize: compact ? 'var(--fs-body)' : 14.5, fontWeight: 500, flex: 1, minWidth: 0 }}>{productName(lang, p)}</span>
         <span style={{ fontSize: compact ? 'var(--fs-body)' : 14.5 }}>{fmtUsd(lineTotal(l))}</span>
       </div>

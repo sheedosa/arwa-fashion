@@ -70,7 +70,11 @@ npx tsc -b       # typecheck only
 
 **Phase 1**
 - Auth and role-scoped navigation (owner / manager / cashier)
-- Products and variants — one row per size × colour, SKU and barcode per variant
+- Products and variants — one row per size × colour, SKU and barcode per variant.
+  Each item carries a photo, its type (from the shop's own list of twelve — كلوش,
+  ستريت, ستاقونة, …), supplier, sale and cost price, quantity and in-stock status per
+  branch; new items can be created with opening stock for a chosen branch, posted as
+  receipt movements
 - Per-branch inventory — search, low-stock highlighting, cross-branch availability,
   movements ledger, CSV export
 - POS — search/scan, category filters, cart with line and order discounts,

@@ -4,7 +4,7 @@ import { useI18n, useNm } from '../../lib/i18n'
 import { useStore } from '../../store/useStore'
 import { useIsPhone } from '../../lib/useMediaQuery'
 import { BRANCHES } from '../../lib/mockData'
-import { movementLabel } from '../../lib/analytics'
+import { movementLabel, reasonLabel } from '../../lib/analytics'
 import { variantMeta, productName } from '../../lib/variantDisplay'
 import { exportCsv } from '../../lib/csv'
 import { Input } from '../../components/ui/Field'
@@ -12,6 +12,7 @@ import { Button } from '../../components/ui/Button'
 import { Card, CardKicker } from '../../components/ui/Card'
 import { Chip, Tag } from '../../components/ui/Tag'
 import { DataTable, type Column } from '../../components/ui/DataTable'
+import { ProductImage } from '../../components/ui/ProductImage'
 import type { BranchId, Variant } from '../../lib/types'
 
 export function InventoryScreen() {
@@ -41,7 +42,15 @@ export function InventoryScreen() {
     { key: 'sku', header: 'SKU', role: 'meta', ltr: true, tdClassName: 'text-muted', tdStyle: { fontSize: 'var(--fs-meta)' }, cell: (v) => v.sku },
     { key: 'product', header: t.product, role: 'title', cell: (v) => {
       const p = products.find((pp) => pp.code === v.productCode)!
-      return <><div>{productName(lang, p)}</div><div className="text-muted" style={{ fontSize: 'var(--fs-meta)', fontWeight: 400 }}>{variantMeta(lang, v)}</div></>
+      return (
+        <span style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          <ProductImage src={p.image} size={40} radius="var(--radius-sm)" />
+          <span style={{ minWidth: 0 }}>
+            <div>{productName(lang, p)}</div>
+            <div className="text-muted" style={{ fontSize: 'var(--fs-meta)', fontWeight: 400 }}>{variantMeta(lang, v)}</div>
+          </span>
+        </span>
+      )
     } },
     { key: 'qty', header: t.qty, cell: (v) => {
       const qty = inventory[v.sku]?.[activeBranch] || 0
@@ -93,7 +102,7 @@ export function InventoryScreen() {
               <span className="text-muted" style={{ fontSize: 'var(--fs-micro)', flex: 'none' }}>{m.time}</span>
               <span style={{ color: m.qty > 0 ? 'var(--color-accent-300)' : 'var(--color-neutral-400)' }}>{movementLabel(lang, m.type)}</span>
               <span className="ltr-cell" style={{ marginInlineStart: 'auto' }}>{m.qty > 0 ? '+' : ''}{m.qty}</span>
-              <span className="text-muted" style={{ flex: '1 1 100%', fontSize: 'var(--fs-meta)' }}>{m.sku} · {nm(BRANCHES.find((b) => b.id === m.branchId)!.name)} · {m.userName}</span>
+              <span className="text-muted" style={{ flex: '1 1 100%', fontSize: 'var(--fs-meta)' }}>{m.sku} · {nm(BRANCHES.find((b) => b.id === m.branchId)!.name)} · {m.userName}{m.reason ? ` · ${reasonLabel(lang, m.reason)}` : ''}</span>
             </div>
           ))}
         </Card>
