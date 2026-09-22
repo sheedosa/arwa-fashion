@@ -18,7 +18,7 @@ Sign in as any of three roles to see how the interface changes:
 
 | Role | Sees |
 |---|---|
-| **المالكة** / Owner | Everything — all branches, dashboard, reports, cost prices and margin |
+| **المالك** / Owner | Everything — all branches, dashboard, reports, cost prices and margin |
 | **مدير فرع** / Branch manager | Own branch only: stock, returns, transfers out, purchasing (without landed cost), stock counts, cash close, branch expenses. No dashboard, reports or P&L |
 | **كاشير** / Cashier | Sell, return, look up stock and customers. **No cost or margin anywhere**, including CSV exports |
 
@@ -110,7 +110,7 @@ npx tsc -b       # typecheck only
 
 ## Demo script
 
-Log in as **المالكة** (owner) unless a step says otherwise. Everything below uses seeded data.
+Log in as **المالك** (owner) unless a step says otherwise. Everything below uses seeded data.
 
 1. **Sell** — POS → type `ARW-1101-M-BLK` and Enter twice (or scan barcode `62200001001`),
    set the order discount to 10 %, Pay → tap "المتبقي د.ل" then add 10 more dinars →

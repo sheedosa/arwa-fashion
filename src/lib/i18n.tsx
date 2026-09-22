@@ -58,7 +58,7 @@ const dict = {
     closeDay: 'إقفال اليوم', dayClosedMsg: 'أُقفل اليوم — مبيعات هذا اليوم مقفلة ولا تُعدَّل', cashSales: 'نقدي اليوم',
     todaySales: 'مبيعات اليوم', todayUnits: 'قطع اليوم', monthSales: 'مبيعات الشهر', monthMargin: 'هامش الشهر',
     topSellers: 'الأكثر مبيعًا هذا الشهر', byBranch: 'حسب الفرع', revenue: 'الإيراد', units: 'القطع', margin: 'الهامش',
-    allUsd: 'كل الأرقام بالدولار الأمريكي', roleOwner: 'المالكة', roleManager: 'مدير فرع', roleCashier: 'كاشير',
+    allUsd: 'كل الأرقام بالدولار الأمريكي', roleOwner: 'المالك', roleManager: 'مدير فرع', roleCashier: 'كاشير',
     syncedMsg: 'تمت مزامنة المبيعات المعلقة', added: 'أُضيف', noStock: 'الكمية غير متوفرة بهذا الفرع',
     trDone: 'تم تحديث التحويل', custAdded: 'أُضيف العميل', prodAdded: 'أُنشئ المنتج بكل المتغيرات',
     closedT: 'أُقفل صندوق اليوم', export: 'تصدير CSV', all: 'الكل', noResults: 'لا توجد نتائج مطابقة',
