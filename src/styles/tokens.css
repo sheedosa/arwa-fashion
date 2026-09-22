@@ -419,7 +419,8 @@ select.input { cursor: pointer; }
 
 /* ── dialog ───────────────────────────────────────────────────────────── */
 .dialog-backdrop {
-  position: fixed; inset: 0; z-index: 40;
+  /* above the drawer (55): opening the menu must never inert an open dialog */
+  position: fixed; inset: 0; z-index: 58;
   display: grid; place-items: center;
   padding: var(--space-4);
   background: color-mix(in srgb, var(--color-neutral-100) 40%, transparent);
@@ -611,3 +612,14 @@ select.input { cursor: pointer; }
   visibility: hidden;
 }
 .pos-sheet[data-open='true'] { transform: translateY(0); visibility: visible; }
+
+/* ── print: the receipt only ───────────────────────────────────────────── */
+@media print {
+  @page { size: 80mm auto; margin: 6mm; }
+  html, body, .app-shell { height: auto !important; overflow: visible !important; background: #fff !important; color: #000 !important; }
+  body * { visibility: hidden !important; }
+  .print-root, .print-root * { visibility: visible !important; }
+  .print-root { position: fixed !important; inset: 0 auto auto 0 !important; width: 100% !important; display: block !important; padding: 0 !important; background: #fff !important; }
+  .print-root .dialog { width: 100% !important; max-width: 80mm; margin: 0 !important; padding: 0 !important; box-shadow: none !important; border: 0 !important; border-radius: 0 !important; max-height: none !important; }
+  .print-root .dialog-head, .print-root .dialog-actions { display: none !important; }
+}

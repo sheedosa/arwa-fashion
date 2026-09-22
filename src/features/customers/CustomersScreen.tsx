@@ -3,6 +3,7 @@ import { DownloadSimple, UserPlus, WhatsappLogo, X } from '@phosphor-icons/react
 import { useI18n } from '../../lib/i18n'
 import { useStore } from '../../store/useStore'
 import { useIsPhone } from '../../lib/useMediaQuery'
+import { useScrollIntoView } from '../../lib/useScrollIntoView'
 import { fmtUsd } from '../../lib/currency'
 import { saleTotal } from '../../lib/calc'
 import { productName } from '../../lib/variantDisplay'
@@ -19,6 +20,7 @@ export function CustomersScreen() {
   const customers = useStore((s) => s.customers)
   const sales = useStore((s) => s.sales)
   const products = useStore((s) => s.products)
+  const variants = useStore((s) => s.variants)
   const addCustomer = useStore((s) => s.addCustomer)
   const flash = useStore((s) => s.flash)
 
@@ -36,7 +38,11 @@ export function CustomersScreen() {
   const detail = openId != null ? customers.find((c) => c.id === openId) : null
   const history = detail ? sales.filter((s) => s.customerId === detail.id) : []
 
-  const add = () => { addCustomer(phone, name); flash(t.custAdded); setPhone('+218 9'); setName('') }
+  const add = () => {
+    if (!addCustomer(phone, name)) { flash(t.custExists); return }
+    flash(t.custAdded); setPhone('+218 9'); setName('')
+  }
+  const detailRef = useScrollIntoView<HTMLDivElement>(openId)
 
   const columns: Column<Customer>[] = [
     { key: 'name', header: t.name, role: 'title', cell: (c) => c.name },
@@ -67,6 +73,7 @@ export function CustomersScreen() {
         <DataTable rows={rows} columns={columns} rowKey={(c) => String(c.id)} />
       </Card>
       {detail && (
+        <div ref={detailRef} style={{ scrollMarginTop: 12 }}>
         <Card className="elev-md" style={{ gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <div style={{ flex: '1 1 160px', minWidth: 0 }}>
@@ -88,11 +95,12 @@ export function CustomersScreen() {
             <div key={s.no} style={{ display: 'flex', gap: 10, fontSize: 'var(--fs-body)', padding: '3px 0', flexWrap: 'wrap' }}>
               <span className="text-muted ltr-cell">{s.no}</span>
               <span className="text-muted">{s.date}</span>
-              <span style={{ flex: '1 1 100%', order: 3 }}>{s.lines.map((l) => productName(lang, products.find((p) => l.sku.startsWith(p.code + '-'))!)).join('، ')}</span>
+              <span style={{ flex: '1 1 100%', order: 3 }}>{s.lines.map((l) => { const p = products.find((pp) => pp.code === variants.find((v) => v.sku === l.sku)?.productCode); return p ? productName(lang, p) : l.sku }).join('، ')}</span>
               <span style={{ marginInlineStart: 'auto' }}>{fmtUsd(saleTotal(s))}</span>
             </div>
           ))}
         </Card>
+        </div>
       )}
     </div>
   )

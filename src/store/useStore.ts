@@ -145,7 +145,7 @@ interface AppState {
   /** Returns the id — an existing supplier's when the name already matches. */
   addSupplier: (name: string) => string
   /** Owner-only edit of the descriptive fields; code, sizes and colours are fixed. */
-  updateProduct: (code: string, patch: Partial<Pick<Product, 'name' | 'typeId' | 'supplierId' | 'image' | 'price' | 'cost'>>) => void
+  updateProduct: (code: string, patch: Partial<Pick<Product, 'name' | 'typeId' | 'category' | 'supplierId' | 'image' | 'price' | 'cost'>>) => void
 
   // actions — reconciliation
   setCashCounted: (branchId: BranchId, field: 'usd' | 'lyd', value: string) => void
@@ -425,7 +425,11 @@ export const useStore = create<AppState>((set, get) => ({
 
   updateProduct: (code, patch) => set((st) => ({ products: st.products.map((p) => (p.code === code ? { ...p, ...patch } : p)) })),
 
-  setCashCounted: (branchId, field, value) => set((st) => ({ cashCounted: { ...st.cashCounted, [branchId]: { ...st.cashCounted[branchId], [field]: value } } })),
+  setCashCounted: (branchId, field, value) => set((st) => {
+    // Both fields always present, so the inputs stay controlled from the first keystroke.
+    const cur = st.cashCounted[branchId] || { usd: '', lyd: '' }
+    return { cashCounted: { ...st.cashCounted, [branchId]: { ...cur, [field]: value } } }
+  }),
   closeDay: (branchId) => set((st) => ({ closedDays: { ...st.closedDays, [branchId + ':' + todayStr()]: true } })),
 
   createPurchaseOrder: ({ supplierId, branchId, items, freightUsd, customsUsd, clearingUsd }) => {

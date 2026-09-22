@@ -1,10 +1,22 @@
-import type { CSSProperties, InputHTMLAttributes, ReactNode, Ref, SelectHTMLAttributes } from 'react'
+import { Children, cloneElement, isValidElement, useId, type CSSProperties, type InputHTMLAttributes, type ReactElement, type ReactNode, type Ref, type SelectHTMLAttributes } from 'react'
 
+/** Label + control. The first element child gets the label's `id` via `htmlFor`
+ *  (unless it already has one), so tapping the label focuses the control and screen
+ *  readers announce it. */
 export function Field({ label, children, style, className }: { label: string; children: ReactNode; style?: CSSProperties; className?: string }) {
+  const id = useId()
+  let linked = false
+  const kids = Children.map(children, (child) => {
+    if (linked || !isValidElement(child)) return child
+    const el = child as ReactElement<{ id?: string }>
+    if (typeof el.type === 'string' && !['input', 'select', 'textarea'].includes(el.type)) return child
+    linked = true
+    return el.props.id ? child : cloneElement(el, { id })
+  })
   return (
     <div className={['field', className].filter(Boolean).join(' ')} style={style}>
-      <label>{label}</label>
-      {children}
+      <label htmlFor={linked ? id : undefined}>{label}</label>
+      {kids}
     </div>
   )
 }

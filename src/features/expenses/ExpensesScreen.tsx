@@ -36,10 +36,11 @@ export function ExpensesScreen() {
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
 
-  const canAdd = parseFloat(amount) > 0 && description.trim()
+  const canAdd = Number.isFinite(parseFloat(amount)) && parseFloat(amount) > 0 && description.trim()
   const add = () => {
-    addExpense({ branchId: expBranch, date: todayStr(), category, description: description.trim(), amountUsd: parseFloat(amount) })
-    flash(t.added)
+    const ok = addExpense({ branchId: isOwner ? expBranch : branch, date: todayStr(), category, description: description.trim(), amountUsd: parseFloat(amount) })
+    if (!ok) return
+    flash(t.expenseAdded)
     setDescription(''); setAmount('')
   }
 
@@ -82,7 +83,15 @@ export function ExpensesScreen() {
         </div>
       </Card>
 
-      <div className="grid-2" style={{ '--grid-2-cols': '1fr 1fr' } as CSSProperties}>
+      {/* Revenue, COGS and margin are the owner's figures; a manager sees only their own
+          branch's expense total. */}
+      {!isOwner && (
+        <Card style={{ padding: '16px 18px', gap: 8 }}>
+          <CardKicker>{t.expensesOnly} · {nm(BRANCHES.find((b) => b.id === branch)!.name)}</CardKicker>
+          <PnlRow label={t.expenses} value={fmtUsd(expenseByBranch[branch])} bold />
+        </Card>
+      )}
+      {isOwner && <div className="grid-2" style={{ '--grid-2-cols': '1fr 1fr' } as CSSProperties}>
         <Card style={{ padding: '16px 18px', gap: 8 }}>
           <CardKicker>{t.pnl} · {t.consolidated} · {t.thisMonth}</CardKicker>
           <PnlRow label={t.revenue} value={fmtUsd(month.totalSales)} />
@@ -98,7 +107,7 @@ export function ExpensesScreen() {
             return <PnlRow key={b.id} label={nm(b.name)} value={fmtUsd(br.revenue - br.cost - expenseByBranch[b.id])} />
           })}
         </Card>
-      </div>
+      </div>}
 
       <Card style={{ padding: isPhone ? 0 : '6px 14px', background: isPhone ? 'transparent' : undefined }}>
         <DataTable rows={rows} columns={columns} rowKey={(e) => e.id} />

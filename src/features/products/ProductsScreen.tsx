@@ -3,6 +3,7 @@ import { DownloadSimple, Plus } from '@phosphor-icons/react'
 import { useI18n, useNm } from '../../lib/i18n'
 import { useStore } from '../../store/useStore'
 import { useBreakpoint } from '../../lib/useMediaQuery'
+import { useScrollIntoView } from '../../lib/useScrollIntoView'
 import { BRANCHES } from '../../lib/mockData'
 import { itemTypeName } from '../../lib/itemTypes'
 import { fmtUsd } from '../../lib/currency'
@@ -37,6 +38,7 @@ export function ProductsScreen() {
   const qtyAt = (p: Product) => productQtyAtBranch(p, variants, inventory, branch)
   const supplierName = (p: Product) => suppliers.find((s) => s.id === p.supplierId)?.name || '—'
   const detail = openCode ? products.find((p) => p.code === openCode) : null
+  const detailRef = useScrollIntoView<HTMLDivElement>(openCode)
 
   const columns: Column<Product>[] = [
     // The card headline is baseline-aligned, so the thumbnail gets its own centred row.
@@ -50,14 +52,15 @@ export function ProductsScreen() {
     { key: 'type', header: t.itemType, tdClassName: 'text-muted', cell: (p) => itemTypeName(lang, p.typeId) },
     { key: 'qty', header: isDesktop ? t.itemQty : `${t.itemQty} · ${branchName}`, cell: (p) => qtyAt(p) },
     { key: 'price', header: t.salePrice, cell: (p) => fmtUsd(p.price) },
-    { key: 'cost', header: t.costPrice, hidden: !canSeeCost, tdClassName: 'text-muted', cell: (p) => fmtUsd(p.cost) },
+    // A manager-created item has no cost yet; the owner completes it from the detail panel.
+    { key: 'cost', header: t.costPrice, hidden: !canSeeCost, tdClassName: 'text-muted', cell: (p) => (p.cost > 0 ? fmtUsd(p.cost) : <Tag variant="bad">{t.costMissing}</Tag>) },
     { key: 'supplier', header: t.supplierName, tdClassName: 'text-muted', cell: (p) => supplierName(p) },
     { key: 'status', header: t.stockStatus, cell: (p) => (qtyAt(p) > 0 ? <Tag variant="good">{t.inStock}</Tag> : <Tag variant="bad">{t.outOfStock}</Tag>) },
     { key: 'open', header: '', role: 'action', cell: (p) => <Button variant="ghost" onClick={() => setOpenCode(p.code)} aria-expanded={openCode === p.code}>{t.details}</Button> },
   ]
 
   const csv = () => {
-    const head = ['Code', 'Name AR', 'Name EN', 'Type', 'Supplier', `Qty @ ${branch}`, 'Status', 'Price USD']
+    const head = ['Code', 'Name AR', 'Name EN', 'Type', 'Supplier', `Qty @ ${BRANCHES.find((b) => b.id === branch)!.name.en}`, 'Status', 'Price USD']
     if (canSeeCost) head.push('Cost USD')
     exportCsv('products.csv', head, products.map((p) => {
       const q = qtyAt(p)
@@ -76,9 +79,9 @@ export function ProductsScreen() {
       </div>
       <span className="text-muted" style={{ fontSize: 'var(--fs-meta)', marginTop: -6 }}>{t.stockAtBranch}: {branchName}</span>
       <Card style={{ padding: isDesktop ? '6px 14px' : 0, background: isDesktop ? undefined : 'transparent' }}>
-        <DataTable rows={products} columns={columns} rowKey={(p) => p.code} stacked={!isDesktop} pane={isDesktop && products.length > 12} />
+        <DataTable rows={products} columns={columns} rowKey={(p) => p.code} stacked={!isDesktop} pane={isDesktop && products.length > 24} />
       </Card>
-      {detail && <ProductDetail p={detail} canSeeCost={!!canSeeCost} onClose={() => setOpenCode(null)} />}
+      {detail && <div ref={detailRef} style={{ scrollMarginTop: 12 }}><ProductDetail p={detail} canSeeCost={!!canSeeCost} onClose={() => setOpenCode(null)} /></div>}
       {npOpen && <NewProductDialog onClose={() => setNpOpen(false)} canSeeCost={!!canSeeCost} />}
     </div>
   )

@@ -6,7 +6,7 @@ import { fmtUsd, fmtLyd } from '../../lib/currency'
 import { lineTotal, saleTotal, saleSubtotal } from '../../lib/calc'
 import { variantMeta, productName } from '../../lib/variantDisplay'
 import { Button } from '../../components/ui/Button'
-import { DialogActions } from '../../components/ui/Dialog'
+import { Dialog, DialogActions } from '../../components/ui/Dialog'
 import { Tag } from '../../components/ui/Tag'
 import type { Sale } from '../../lib/types'
 
@@ -24,8 +24,9 @@ export function ReceiptDialog({ sale, onClose }: { sale: Sale; onClose: () => vo
   const waText = encodeURIComponent((lang === 'ar' ? 'إيصال أروى فاشن ' : 'Arwa Fashion receipt ') + sale.no + ' — ' + fmtUsd(total))
 
   return (
-    <div className="dialog-backdrop" style={{ zIndex: 50 }}>
-      <div className="dialog" style={{ width: 'min(400px,100%)', gap: 0 }}>
+    // The shared Dialog gives Escape, backdrop dismiss, focus handling and a close button;
+    // `print-root` is what the print stylesheet keeps when everything else is hidden.
+    <Dialog title={t.receipt} onClose={onClose} width={400} className="print-root" panelStyle={{ gap: 0 }}>
         <div style={{ textAlign: 'center', paddingBottom: 12, borderBottom: '1px dashed var(--color-divider)' }}>
           <div style={{ fontSize: 18.5, fontWeight: 500 }}>{t.brand}</div>
           <div className="text-muted" style={{ fontSize: 13 }}>{lang === 'ar' ? branch.name.ar : branch.name.en} · {sale.date} {sale.time}</div>
@@ -34,11 +35,11 @@ export function ReceiptDialog({ sale, onClose }: { sale: Sale; onClose: () => vo
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '12px 0', borderBottom: '1px dashed var(--color-divider)' }}>
           {sale.lines.map((l, i) => {
-            const p = products.find((pp) => l.sku.startsWith(pp.code + '-'))!
-            const v = variants.find((vv) => vv.sku === l.sku)!
+            const v = variants.find((vv) => vv.sku === l.sku)
+            const p = v && products.find((pp) => pp.code === v.productCode)
             return (
               <div key={i} style={{ display: 'flex', gap: 8, fontSize: 14 }}>
-                <span style={{ flex: 1 }}>{productName(lang, p)} <span className="text-muted">{variantMeta(lang, v)} ×{l.qty}</span></span>
+                <span style={{ flex: 1 }}>{p ? productName(lang, p) : l.sku} <span className="text-muted">{v ? variantMeta(lang, v) : ''} ×{l.qty}</span></span>
                 <span>{fmtUsd(lineTotal(l))}</span>
               </div>
             )
@@ -55,7 +56,7 @@ export function ReceiptDialog({ sale, onClose }: { sale: Sale; onClose: () => vo
           {sale.payments.map((p, i) => (
             <div key={i} style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span className="text-muted">{(p.method === 'cash' ? t.cash : p.method === 'card' ? t.card : t.bank)} — {p.currency}</span>
-              <span style={{ direction: 'ltr' }}>{p.currency === 'USD' ? fmtUsd(p.amount) : `${fmtLyd(p.amount, lang)} (@${fxRate.toFixed(2)})`}</span>
+              <span style={{ direction: 'ltr' }}>{p.currency === 'USD' ? fmtUsd(p.amount) : `${fmtLyd(p.amount, lang)} (@${(p.fxRate ?? fxRate).toFixed(2)})`}</span>
             </div>
           ))}
           {sale.change && (
@@ -75,7 +76,6 @@ export function ReceiptDialog({ sale, onClose }: { sale: Sale; onClose: () => vo
           <a className="btn btn-secondary" href={`https://wa.me/?text=${waText}`} target="_blank" rel="noreferrer"><WhatsappLogo />{t.whatsapp}</a>
           <Button variant="primary" onClick={onClose}>{t.newSale}</Button>
         </DialogActions>
-      </div>
-    </div>
+    </Dialog>
   )
 }

@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react'
-import { X } from '@phosphor-icons/react'
+import { useState, type ReactNode } from 'react'
+import { PencilSimple, X } from '@phosphor-icons/react'
 import { useI18n, useNm } from '../../lib/i18n'
 import { useStore } from '../../store/useStore'
 import { useIsPhone } from '../../lib/useMediaQuery'
@@ -14,6 +14,7 @@ import { Tag } from '../../components/ui/Tag'
 import { ProductImage } from '../../components/ui/ProductImage'
 import { DataTable, type Column } from '../../components/ui/DataTable'
 import { sizeLabel } from './qty'
+import { EditProductDialog } from './EditProductDialog'
 import type { Product, Variant } from '../../lib/types'
 
 /** Every field from the client's item-details list, then stock per branch and per variant. */
@@ -25,6 +26,7 @@ export function ProductDetail({ p, canSeeCost, onClose }: { p: Product; canSeeCo
   const inventory = useStore((s) => s.inventory)
   const suppliers = useStore((s) => s.suppliers)
   const branch = useStore((s) => s.branch)
+  const [editing, setEditing] = useState(false)
 
   const byBranch = productQtyByBranch(p, variants, inventory)
   const qtyHere = byBranch[branch]
@@ -44,7 +46,7 @@ export function ProductDetail({ p, canSeeCost, onClose }: { p: Product; canSeeCo
     { label: t.supplierName, value: supplier?.name || '—' },
     { label: `${t.itemQty} · ${nm(BRANCHES.find((b) => b.id === branch)!.name)}`, value: qtyHere },
     { label: t.salePrice, value: fmtUsd(p.price) },
-    { label: t.costPrice, value: fmtUsd(p.cost), hidden: !canSeeCost },
+    { label: t.costPrice, value: p.cost > 0 ? fmtUsd(p.cost) : <Tag variant="bad">{t.costMissing}</Tag>, hidden: !canSeeCost },
     { label: t.sizesL, value: p.sizes.map((s) => sizeLabel(s, lang)).join(' · ') },
     { label: t.colorsL, value: <span style={{ display: 'inline-flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>{p.colors.map((c) => <span key={c}>{swatch(c)}</span>)}</span> },
     { label: t.stockStatus, value: qtyHere > 0 ? <Tag variant="good">{t.inStock}</Tag> : <Tag variant="bad">{t.outOfStock}</Tag> },
@@ -71,8 +73,10 @@ export function ProductDetail({ p, canSeeCost, onClose }: { p: Product; canSeeCo
           <CardKicker>{t.itemDetails}</CardKicker>
           <div style={{ fontSize: 'var(--fs-lead)', fontWeight: 500 }}>{productName(lang, p)}</div>
         </div>
+        {canSeeCost && <Button variant="secondary" onClick={() => setEditing(true)}><PencilSimple />{t.editProduct}</Button>}
         <Button variant="ghost" icon onClick={onClose} aria-label={t.close}><X /></Button>
       </div>
+      {editing && <EditProductDialog p={p} onClose={() => setEditing(false)} />}
 
       <div style={{ display: 'grid', gridTemplateColumns: isPhone ? '1fr' : 'minmax(200px, 260px) minmax(0, 1fr)', gap: 18, alignItems: 'start' }}>
         <ProductImage src={p.image} size={isPhone ? 'min(260px, 100%)' : '100%'} radius="var(--radius-lg)" alt={p.image ? productName(lang, p) : ''}
