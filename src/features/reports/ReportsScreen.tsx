@@ -16,10 +16,10 @@ export function ReportsScreen() {
   const inventory = useStore((s) => s.inventory)
 
   const sellThrough = sellThroughByStyle(sales, queue, products, variants, inventory)
-  const sizeRun = sizeRunAnalysis(sales, queue, variants, inventory)
+  const sizeRun = sizeRunAnalysis(sales, queue, products, variants, inventory)
   const deadStock = deadStockAging(sales, queue, variants, products, inventory).slice(0, 12)
   const margin = marginByCategory(sales, queue, products)
-  const bySeller = salesBySeller(sales, queue)
+  const bySeller = salesBySeller(sales, queue, products)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }} data-screen-label="Reports">
@@ -84,7 +84,7 @@ export function ReportsScreen() {
                     <td>{productName(lang, r.product)}</td>
                     <td>{r.onHand}</td>
                     <td>{r.days}</td>
-                    <td>{!r.everMoved && <Tag variant="bad">{t.neverMoved}</Tag>}</td>
+                    <td>{!r.everMoved && <Tag variant="bad" title={t.neverMovedHint}>{t.neverMoved}</Tag>}</td>
                   </tr>
                 ))}
               </tbody>

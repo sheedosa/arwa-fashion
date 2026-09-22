@@ -91,7 +91,7 @@ export function seedSales(): Sale[] {
     { no: 'S-2112', date: td, time: '13:40', branchId: 'bn', customerId: 2, sellerName: 'خالد', lines: [{ sku: 'ARW-1106-M-BLK', qty: 1, price: 120, discountPct: 0 }], orderDiscountPct: 0, payments: [{ currency: 'LYD', amount: 876, method: 'cash' }], change: null },
     { no: 'S-2111', date: td, time: '13:02', branchId: 'ms', customerId: null, sellerName: 'فرج', lines: [{ sku: 'ARW-1301-ONE-BLK', qty: 1, price: 85, discountPct: 0 }], orderDiscountPct: 0, payments: [{ currency: 'USD', amount: 85, method: 'cash' }], change: null },
     { no: 'S-2110', date: td, time: '12:15', branchId: 'bn', customerId: 3, sellerName: 'خالد', lines: [{ sku: 'ARW-1201-M-BLK', qty: 1, price: 95, discountPct: 0 }, { sku: 'ARW-1107-M-PNK', qty: 1, price: 65, discountPct: 0 }], orderDiscountPct: 0, payments: [{ currency: 'LYD', amount: 1168, method: 'cash' }], change: null },
-    { no: 'S-2109', date: td, time: '11:42', branchId: 'tr', customerId: 1, sellerName: 'سارة', lines: [{ sku: 'ARW-1102-M-BLK', qty: 1, price: 260, discountPct: 0 }], orderDiscountPct: 10, payments: [{ currency: 'USD', amount: 100, method: 'card' }, { currency: 'LYD', amount: 979, method: 'cash' }], change: null },
+    { no: 'S-2109', date: td, time: '11:42', branchId: 'tr', customerId: 1, sellerName: 'سارة', lines: [{ sku: 'ARW-1102-M-BLK', qty: 1, price: 260, discountPct: 0 }], orderDiscountPct: 10, payments: [{ currency: 'USD', amount: 100, method: 'card' }, { currency: 'LYD', amount: 979, method: 'cash', fxRate: 7.3 }], change: { currency: 'LYD', amount: 1 } },
     { no: 'S-2108', date: td, time: '10:05', branchId: 'tr', customerId: 4, sellerName: 'سارة', lines: [{ sku: 'ARW-1301-ONE-WHT', qty: 1, price: 85, discountPct: 0 }, { sku: 'ARW-1106-S-BEG', qty: 1, price: 120, discountPct: 0 }], orderDiscountPct: 0, payments: [{ currency: 'LYD', amount: 1497, method: 'cash' }], change: null },
     { no: 'S-2094', date: daysAgo(9), time: '17:22', branchId: 'tr', customerId: 1, sellerName: 'سارة', lines: [{ sku: 'ARW-1101-M-BLK', qty: 1, price: 220, discountPct: 0 }], orderDiscountPct: 0, payments: [{ currency: 'LYD', amount: 1606, method: 'cash' }], change: null },
     { no: 'S-2081', date: daysAgo(16), time: '12:40', branchId: 'bn', customerId: 3, sellerName: 'خالد', lines: [{ sku: 'ARW-1103-S-PNK', qty: 1, price: 145, discountPct: 10 }], orderDiscountPct: 0, payments: [{ currency: 'USD', amount: 130.5, method: 'cash' }], change: null },
@@ -99,13 +99,20 @@ export function seedSales(): Sale[] {
   ]
 }
 
+// One ledger row per seeded sale line today, so the movements panel reconciles with the
+// receipts screen (7 units, 5 receipts), plus the in-transit transfer and yesterday's shipment.
 export function seedMovements(): StockMovement[] {
   const td = todayStr()
   return [
-    { id: 'M-4', time: '13:40', date: td, type: 'sale', sku: 'ARW-1106-M-BLK', qty: -1, branchId: 'bn', userName: 'خالد' },
-    { id: 'M-3', time: '13:02', date: td, type: 'sale', sku: 'ARW-1301-ONE-BLK', qty: -1, branchId: 'ms', userName: 'فرج' },
-    { id: 'M-2', time: '09:30', date: td, type: 'transferOut', sku: 'ARW-1105-M-NVY', qty: -3, branchId: 'bn', userName: 'خالد' },
-    { id: 'M-1', time: '09:00', date: td, type: 'receipt', sku: 'ARW-1104-L-BLK', qty: 12, branchId: 'tr', userName: 'أروى' },
+    { id: 'M-9', time: '13:40', date: td, type: 'sale', sku: 'ARW-1106-M-BLK', qty: -1, branchId: 'bn', userName: 'خالد' },
+    { id: 'M-8', time: '13:02', date: td, type: 'sale', sku: 'ARW-1301-ONE-BLK', qty: -1, branchId: 'ms', userName: 'فرج' },
+    { id: 'M-7', time: '12:15', date: td, type: 'sale', sku: 'ARW-1107-M-PNK', qty: -1, branchId: 'bn', userName: 'خالد' },
+    { id: 'M-6', time: '12:15', date: td, type: 'sale', sku: 'ARW-1201-M-BLK', qty: -1, branchId: 'bn', userName: 'خالد' },
+    { id: 'M-5', time: '11:42', date: td, type: 'sale', sku: 'ARW-1102-M-BLK', qty: -1, branchId: 'tr', userName: 'سارة' },
+    { id: 'M-4', time: '10:05', date: td, type: 'sale', sku: 'ARW-1106-S-BEG', qty: -1, branchId: 'tr', userName: 'سارة' },
+    { id: 'M-3', time: '10:05', date: td, type: 'sale', sku: 'ARW-1301-ONE-WHT', qty: -1, branchId: 'tr', userName: 'سارة' },
+    { id: 'M-2', time: '09:30', date: daysAgo(3), type: 'transferOut', sku: 'ARW-1105-M-NVY', qty: -3, branchId: 'bn', userName: 'خالد' },
+    { id: 'M-1', time: '17:10', date: daysAgo(1), type: 'receipt', sku: 'ARW-1104-L-BLK', qty: 12, branchId: 'tr', userName: 'أروى' },
   ]
 }
 
@@ -124,16 +131,21 @@ export const TRANSFERS: Transfer[] = [
 
 // Baseline month-to-date figures per branch, layered under live mock sales so the
 // dashboard/reports read realistically without needing months of seeded transactions.
-// Units total 145 = the sum of BASELINE_UNITS_BY_STYLE below.
+// Units 145, revenue $22,065 and cost $10,198 are exactly Σ BASELINE_UNITS_BY_STYLE × the
+// product's price / cost, split 46 / 34 / 20 across the branches — so the dashboard, the
+// margin-by-category report and the P&L agree to the dollar. The evening suit has sold
+// nothing yet, which is what lets the dead-stock report show a "never moved" item.
 export const MONTH_BASELINE: Record<string, { sales: number; units: number; cost: number }> = {
-  tr: { sales: 10615, units: 67, cost: 4990 },
-  bn: { sales: 7845, units: 49, cost: 3690 },
-  ms: { sales: 4615, units: 29, cost: 2170 },
+  tr: { sales: 10150, units: 67, cost: 4691 },
+  bn: { sales: 7502, units: 49, cost: 3467 },
+  ms: { sales: 4413, units: 29, cost: 2040 },
 }
 export const BASELINE_UNITS_BY_STYLE: Record<string, number> = {
-  'ARW-1106': 26, 'ARW-1103': 21, 'ARW-1107': 19, 'ARW-1101': 16, 'ARW-1201': 14, 'ARW-1102': 11,
-  'ARW-1301': 10, 'ARW-1105': 9, 'ARW-1501': 7, 'ARW-1104': 5, 'ARW-1302': 4, 'ARW-1401': 3,
+  'ARW-1106': 30, 'ARW-1103': 24, 'ARW-1107': 19, 'ARW-1101': 16, 'ARW-1201': 14, 'ARW-1102': 11,
+  'ARW-1301': 10, 'ARW-1105': 9, 'ARW-1104': 5, 'ARW-1302': 4, 'ARW-1401': 3, 'ARW-1501': 0,
 }
+/** How the month's baseline splits across the three seeded salespeople. */
+export const BASELINE_SELLER_SHARE: Record<string, number> = { 'سارة': 0.45, 'خالد': 0.35, 'فرج': 0.2 }
 
 // Supplier unit prices are chosen so that price + the shipment's per-unit overhead
 // lands on the product's seeded cost (the receive flow recomputes landed cost).
@@ -165,14 +177,16 @@ export function seedPurchaseOrders(): PurchaseOrder[] {
 }
 
 export function seedExpenses(): Expense[] {
+  // Dated relative to today, so the month in the description follows the calendar.
+  const m = new Date().toLocaleDateString('ar-EG', { month: 'long' })
   return [
-    { id: 'EXP-1', branchId: 'tr', date: daysAgo(2), category: 'rent', description: ' إيجار محل قرقارش — أغسطس', amountUsd: 950 },
-    { id: 'EXP-2', branchId: 'tr', date: daysAgo(2), category: 'salaries', description: 'رواتب فريق قرقارش — أغسطس', amountUsd: 1400 },
-    { id: 'EXP-3', branchId: 'bn', date: daysAgo(3), category: 'rent', description: 'إيجار محل سوق الجمعة — أغسطس', amountUsd: 700 },
-    { id: 'EXP-4', branchId: 'bn', date: daysAgo(3), category: 'salaries', description: 'رواتب فريق سوق الجمعة — أغسطس', amountUsd: 1100 },
-    { id: 'EXP-5', branchId: 'ms', date: daysAgo(5), category: 'utilities', description: 'كهرباء وإنترنت — أغسطس', amountUsd: 180 },
+    { id: 'EXP-1', branchId: 'tr', date: daysAgo(2), category: 'rent', description: `إيجار محل قرقارش — ${m}`, amountUsd: 950 },
+    { id: 'EXP-2', branchId: 'tr', date: daysAgo(2), category: 'salaries', description: `رواتب فريق قرقارش — ${m}`, amountUsd: 1400 },
+    { id: 'EXP-3', branchId: 'bn', date: daysAgo(3), category: 'rent', description: `إيجار محل سوق الجمعة — ${m}`, amountUsd: 700 },
+    { id: 'EXP-4', branchId: 'bn', date: daysAgo(3), category: 'salaries', description: `رواتب فريق سوق الجمعة — ${m}`, amountUsd: 1100 },
+    { id: 'EXP-5', branchId: 'ms', date: daysAgo(5), category: 'utilities', description: `كهرباء وإنترنت — ${m}`, amountUsd: 180 },
     { id: 'EXP-6', branchId: 'tr', date: daysAgo(8), category: 'marketing', description: 'إعلانات سوشيال ميديا', amountUsd: 220 },
-    { id: 'EXP-7', branchId: 'ms', date: daysAgo(10), category: 'salaries', description: 'رواتب فريق بن عاشور — أغسطس', amountUsd: 650 },
+    { id: 'EXP-7', branchId: 'ms', date: daysAgo(10), category: 'salaries', description: `رواتب فريق بن عاشور — ${m}`, amountUsd: 650 },
   ]
 }
 
@@ -182,8 +196,8 @@ export function seedStockCounts(): StockCountSession[] {
       id: 'SC-12', branchId: 'ms', date: daysAgo(30), status: 'posted', userName: 'أروى',
       postedAt: daysAgo(30),
       lines: [
-        { sku: 'ARW-1301-ONE-BLK', expectedQty: 5, countedQty: 4 },
-        { sku: 'ARW-1302-ONE-WHT', expectedQty: 3, countedQty: 3 },
+        { sku: 'ARW-1301-ONE-BLK', expectedQty: 1, countedQty: 1 },
+        { sku: 'ARW-1302-ONE-WHT', expectedQty: 0, countedQty: 1 },
       ],
     },
   ]

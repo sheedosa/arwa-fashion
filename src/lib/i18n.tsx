@@ -170,14 +170,18 @@ interface I18nContextValue {
 const I18nContext = createContext<I18nContextValue | null>(null)
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [lang, setLang] = useState<Lang>('ar')
+  // Remembered per device so a hard refresh (which resets the in-memory store) keeps the
+  // language the person chose.
+  const [lang, setLang] = useState<Lang>(() => {
+    try { return localStorage.getItem('arwa.lang') === 'en' ? 'en' : 'ar' } catch { return 'ar' }
+  })
   const value = useMemo<I18nContextValue>(() => {
     const dir = lang === 'ar' ? 'rtl' : 'ltr'
     return {
       lang,
       dir,
       t: dict[lang],
-      toggleLang: () => setLang((l) => (l === 'ar' ? 'en' : 'ar')),
+      toggleLang: () => setLang((l) => { const next = l === 'ar' ? 'en' : 'ar'; try { localStorage.setItem('arwa.lang', next) } catch { /* private mode */ } return next }),
       langBtnLabel: lang === 'ar' ? 'English' : 'العربية',
     }
   }, [lang])

@@ -47,7 +47,9 @@ export function ExpensesScreen() {
   const month = monthTotals(sales, queue, products)
   const expenseByBranch: Record<BranchId, number> = { tr: 0, bn: 0, ms: 0 }
   let totalExpenses = 0
-  expenses.forEach((e) => { expenseByBranch[e.branchId] += e.amountUsd; totalExpenses += e.amountUsd })
+  // Same calendar-month window as the revenue side of the P&L.
+  const ym = todayStr().slice(0, 7)
+  expenses.filter((e) => e.date.startsWith(ym)).forEach((e) => { expenseByBranch[e.branchId] += e.amountUsd; totalExpenses += e.amountUsd })
 
   const rows = isOwner ? expenses : expenses.filter((e) => e.branchId === branch)
 

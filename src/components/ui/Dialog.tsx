@@ -17,12 +17,13 @@ export function Dialog({ title, onClose, width, children, className, panelStyle 
     openerRef.current = document.activeElement
     panelRef.current?.focus()
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    const prevOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    const scroller = document.querySelector<HTMLElement>('.app-scroll') ?? document.body
+    const prevOverflow = scroller.style.overflow
+    scroller.style.overflow = 'hidden'
     document.addEventListener('keydown', onKey)
     return () => {
       document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = prevOverflow
+      scroller.style.overflow = prevOverflow
       ;(openerRef.current as HTMLElement | null)?.focus?.()
     }
   }, [onClose])

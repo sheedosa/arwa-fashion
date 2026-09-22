@@ -1,57 +1,63 @@
 import type { BranchId, Product, Sale, Variant, InventoryMap, StockMovement } from './types'
-import { MONTH_BASELINE, BASELINE_UNITS_BY_STYLE, todayStr } from './mockData'
-import { saleTotal, saleCost } from './calc'
+import { MONTH_BASELINE, BASELINE_UNITS_BY_STYLE, BASELINE_SELLER_SHARE, todayStr } from './mockData'
+import { saleTotal, saleCost, lineTotal } from './calc'
 
+/** Longest-code prefix match: `ARW-1101-A-S-BLK` belongs to ARW-1101-A, not ARW-1101. */
 function productForSku(products: Product[], sku: string) {
-  return products.find((p) => sku.startsWith(p.code + '-'))
+  let best: Product | undefined
+  for (const p of products) if (sku.startsWith(p.code + '-') && (!best || p.code.length > best.code.length)) best = p
+  return best
 }
+
+/** The reporting window is the current calendar month: live receipts dated this month
+ *  plus the seeded month-to-date baseline. Every "month" figure uses this one filter. */
+export function monthSales(sales: Sale[], queue: Sale[]): Sale[] {
+  const ym = todayStr().slice(0, 7)
+  return [...sales, ...queue].filter((s) => s.date.startsWith(ym))
+}
+
+const baselineRevenue = (products: Product[]) => products.reduce((a, p) => a + (BASELINE_UNITS_BY_STYLE[p.code] || 0) * p.price, 0)
+const baselineUnits = () => Object.values(BASELINE_UNITS_BY_STYLE).reduce((a, n) => a + n, 0)
 
 export function todayKpis(sales: Sale[], queue: Sale[]) {
   const td = todayStr()
-  const all = [...sales, ...queue]
-  const todayAll = all.filter((s) => s.date === td)
+  const todayAll = [...sales, ...queue].filter((s) => s.date === td)
   const totalSales = todayAll.reduce((a, s) => a + saleTotal(s), 0)
   const totalUnits = todayAll.reduce((a, s) => a + s.lines.reduce((x, l) => x + l.qty, 0), 0)
   return { totalSales, totalUnits, receipts: todayAll.length }
 }
 
 export function monthTotals(sales: Sale[], queue: Sale[], products: Product[]) {
-  const all = [...sales, ...queue]
-  let sales_ = 0, cost = 0, units = 0
-  const byBranch: Record<BranchId, { revenue: number; cost: number; units: number }> = {
-    tr: { ...MONTH_BASELINE.tr, revenue: MONTH_BASELINE.tr.sales },
-    bn: { ...MONTH_BASELINE.bn, revenue: MONTH_BASELINE.bn.sales },
-    ms: { ...MONTH_BASELINE.ms, revenue: MONTH_BASELINE.ms.sales },
-  } as unknown as Record<BranchId, { revenue: number; cost: number; units: number }>
+  const byBranch = {} as Record<BranchId, { revenue: number; cost: number; units: number }>
   ;(['tr', 'bn', 'ms'] as BranchId[]).forEach((id) => {
     byBranch[id] = { revenue: MONTH_BASELINE[id].sales, cost: MONTH_BASELINE[id].cost, units: MONTH_BASELINE[id].units }
   })
-  all.forEach((s) => {
-    const rev = saleTotal(s)
-    const c = saleCost(s, (sku) => productForSku(products, sku))
-    const u = s.lines.reduce((x, l) => x + l.qty, 0)
-    byBranch[s.branchId].revenue += rev
-    byBranch[s.branchId].cost += c
-    byBranch[s.branchId].units += u
-    sales_ += rev; cost += c; units += u
+  monthSales(sales, queue).forEach((s) => {
+    const row = byBranch[s.branchId]
+    row.revenue += saleTotal(s)
+    row.cost += saleCost(s, (sku) => productForSku(products, sku))
+    row.units += s.lines.reduce((x, l) => x + l.qty, 0)
   })
-  const totalSales = sales_ + MONTH_BASELINE.tr.sales + MONTH_BASELINE.bn.sales + MONTH_BASELINE.ms.sales
-  const totalCost = cost + MONTH_BASELINE.tr.cost + MONTH_BASELINE.bn.cost + MONTH_BASELINE.ms.cost
-  const totalUnits = units + MONTH_BASELINE.tr.units + MONTH_BASELINE.bn.units + MONTH_BASELINE.ms.units
+  const totalSales = byBranch.tr.revenue + byBranch.bn.revenue + byBranch.ms.revenue
+  const totalCost = byBranch.tr.cost + byBranch.bn.cost + byBranch.ms.cost
+  const totalUnits = byBranch.tr.units + byBranch.bn.units + byBranch.ms.units
   return { totalSales, totalCost, totalUnits, byBranch }
 }
 
+/** Live revenue honours line and order discounts; baseline units sell at list price. */
 export function topSellers(sales: Sale[], queue: Sale[], products: Product[], limit = 5) {
-  const all = [...sales, ...queue]
-  const dyn: Record<string, number> = {}
-  all.forEach((s) => s.lines.forEach((l) => {
+  const dynUnits: Record<string, number> = {}
+  const dynRevenue: Record<string, number> = {}
+  monthSales(sales, queue).forEach((s) => s.lines.forEach((l) => {
     const p = productForSku(products, l.sku)
-    if (p) dyn[p.code] = (dyn[p.code] || 0) + l.qty
+    if (!p) return
+    dynUnits[p.code] = (dynUnits[p.code] || 0) + l.qty
+    dynRevenue[p.code] = (dynRevenue[p.code] || 0) + lineTotal(l) * (1 - (s.orderDiscountPct || 0) / 100)
   }))
   return products
     .map((p) => {
-      const units = (BASELINE_UNITS_BY_STYLE[p.code] || 0) + (dyn[p.code] || 0)
-      return { code: p.code, product: p, units, revenue: units * p.price }
+      const base = BASELINE_UNITS_BY_STYLE[p.code] || 0
+      return { code: p.code, product: p, units: base + (dynUnits[p.code] || 0), revenue: base * p.price + (dynRevenue[p.code] || 0) }
     })
     .sort((a, b) => b.units - a.units)
     .slice(0, limit)
@@ -69,79 +75,94 @@ export function sellThroughByStyle(sales: Sale[], queue: Sale[], products: Produ
   }).sort((a, b) => b.pct - a.pct)
 }
 
-/** Size-run analysis: for each product, sold units per size vs. remaining on hand per size. */
-export function sizeRunAnalysis(sales: Sale[], queue: Sale[], variants: Variant[], inventory: InventoryMap) {
-  const all = [...sales, ...queue]
+/** A style's baseline units, attributed to one of its variants: shared evenly across
+ *  its sizes, then across that size's colours. Fractions are kept so totals add up. */
+function baselineForVariant(v: Variant, products: Product[]): number {
+  const p = products.find((pp) => pp.code === v.productCode)
+  const base = p ? BASELINE_UNITS_BY_STYLE[p.code] || 0 : 0
+  if (!p || !base) return 0
+  return base / (p.sizes.length * p.colors.length)
+}
+
+/** Size-run analysis: month units sold per size vs. remaining on hand per size. */
+export function sizeRunAnalysis(sales: Sale[], queue: Sale[], products: Product[], variants: Variant[], inventory: InventoryMap) {
   const soldBySku: Record<string, number> = {}
-  all.forEach((s) => s.lines.forEach((l) => { soldBySku[l.sku] = (soldBySku[l.sku] || 0) + l.qty }))
+  monthSales(sales, queue).forEach((s) => s.lines.forEach((l) => { soldBySku[l.sku] = (soldBySku[l.sku] || 0) + l.qty }))
   const bySize: Record<string, { sold: number; onHand: number }> = {}
   variants.forEach((v) => {
     const onHand = (inventory[v.sku]?.tr || 0) + (inventory[v.sku]?.bn || 0) + (inventory[v.sku]?.ms || 0)
-    const sold = soldBySku[v.sku] || 0
+    const sold = (soldBySku[v.sku] || 0) + baselineForVariant(v, products)
     if (!bySize[v.size]) bySize[v.size] = { sold: 0, onHand: 0 }
     bySize[v.size].sold += sold
     bySize[v.size].onHand += onHand
   })
   return Object.entries(bySize).map(([size, v]) => {
-    const denom = v.sold + v.onHand
-    return { size, sold: v.sold, onHand: v.onHand, pct: denom > 0 ? Math.round((v.sold / denom) * 100) : 0 }
+    const sold = Math.round(v.sold)
+    const denom = sold + v.onHand
+    return { size, sold, onHand: v.onHand, pct: denom > 0 ? Math.round((sold / denom) * 100) : 0 }
   })
 }
 
-/** Dead-stock aging: variants with zero sales (mock+baseline) and days since product creation. */
+/** Dead-stock aging: variants that have never sold (live or baseline) and days since the style was created. */
 export function deadStockAging(sales: Sale[], queue: Sale[], variants: Variant[], products: Product[], inventory: InventoryMap) {
-  const all = [...sales, ...queue]
   const soldBySku = new Set<string>()
-  all.forEach((s) => s.lines.forEach((l) => soldBySku.add(l.sku)))
+  ;[...sales, ...queue].forEach((s) => s.lines.forEach((l) => soldBySku.add(l.sku)))
   const now = Date.now()
   return variants
-    .map((v) => {
-      const p = productForSku(products, v.sku)!
+    .flatMap((v) => {
+      const p = productForSku(products, v.sku)
+      if (!p) return []
       const onHand = (inventory[v.sku]?.tr || 0) + (inventory[v.sku]?.bn || 0) + (inventory[v.sku]?.ms || 0)
       const days = Math.round((now - new Date(p.createdAt).getTime()) / 86400000)
-      const everMoved = soldBySku.has(v.sku) || (BASELINE_UNITS_BY_STYLE[p.code] || 0) > 0
-      return { sku: v.sku, product: p, onHand, days, everMoved }
+      const everMoved = soldBySku.has(v.sku) || baselineForVariant(v, products) > 0
+      return [{ sku: v.sku, product: p, onHand, days, everMoved }]
     })
     .filter((r) => r.onHand > 0)
-    .sort((a, b) => b.days - a.days)
+    // Never-sold stock first, then the oldest.
+    .sort((a, b) => Number(a.everMoved) - Number(b.everMoved) || b.days - a.days)
 }
 
+/** Margin by type. Products without a recorded cost are left out rather than shown at 100 %. */
 export function marginByCategory(sales: Sale[], queue: Sale[], products: Product[]) {
-  const all = [...sales, ...queue]
+  const priced = products.filter((p) => p.cost > 0)
   const byCat: Record<string, { revenue: number; cost: number }> = {}
-  const baselineByCat: Record<string, { revenue: number; cost: number }> = {}
-  products.forEach((p) => {
-    const key = p.category.en
-    const baseUnits = BASELINE_UNITS_BY_STYLE[p.code] || 0
-    if (!baselineByCat[key]) baselineByCat[key] = { revenue: 0, cost: 0 }
-    baselineByCat[key].revenue += baseUnits * p.price
-    baselineByCat[key].cost += baseUnits * p.cost
-  })
-  all.forEach((s) => s.lines.forEach((l) => {
-    const p = productForSku(products, l.sku)
-    if (!p) return
-    const key = p.category.en
+  const add = (key: string, revenue: number, cost: number) => {
     if (!byCat[key]) byCat[key] = { revenue: 0, cost: 0 }
-    byCat[key].revenue += l.qty * l.price * (1 - (l.discountPct || 0) / 100)
-    byCat[key].cost += l.qty * p.cost
+    byCat[key].revenue += revenue
+    byCat[key].cost += cost
+  }
+  priced.forEach((p) => {
+    const baseUnits = BASELINE_UNITS_BY_STYLE[p.code] || 0
+    add(p.category.en, baseUnits * p.price, baseUnits * p.cost)
+  })
+  monthSales(sales, queue).forEach((s) => s.lines.forEach((l) => {
+    const p = productForSku(priced, l.sku)
+    if (!p) return
+    add(p.category.en, lineTotal(l) * (1 - (s.orderDiscountPct || 0) / 100), l.qty * p.cost)
   }))
-  const cats = new Set([...Object.keys(byCat), ...Object.keys(baselineByCat)])
-  return [...cats].map((key) => {
-    const rev = (byCat[key]?.revenue || 0) + (baselineByCat[key]?.revenue || 0)
-    const cost = (byCat[key]?.cost || 0) + (baselineByCat[key]?.cost || 0)
+  return Object.entries(byCat).map(([key, { revenue, cost }]) => {
     const catAr = products.find((p) => p.category.en === key)?.category.ar || key
-    return { categoryEn: key, categoryAr: catAr, revenue: rev, cost, margin: rev - cost, marginPct: rev > 0 ? Math.round(((rev - cost) / rev) * 100) : 0 }
+    return { categoryEn: key, categoryAr: catAr, revenue, cost, margin: revenue - cost, marginPct: revenue > 0 ? Math.round(((revenue - cost) / revenue) * 100) : 0 }
   }).sort((a, b) => b.revenue - a.revenue)
 }
 
-export function salesBySeller(sales: Sale[], queue: Sale[]) {
-  const all = [...sales, ...queue]
+/** Month performance per salesperson: live receipts plus each seeded seller's share of the baseline. */
+export function salesBySeller(sales: Sale[], queue: Sale[], products: Product[]) {
   const bySeller: Record<string, { revenue: number; units: number; receipts: number }> = {}
-  all.forEach((s) => {
-    if (!bySeller[s.sellerName]) bySeller[s.sellerName] = { revenue: 0, units: 0, receipts: 0 }
-    bySeller[s.sellerName].revenue += saleTotal(s)
-    bySeller[s.sellerName].units += s.lines.reduce((x, l) => x + l.qty, 0)
-    bySeller[s.sellerName].receipts += 1
+  const ensure = (name: string) => (bySeller[name] ||= { revenue: 0, units: 0, receipts: 0 })
+  const baseRev = baselineRevenue(products)
+  const baseUnits = baselineUnits()
+  Object.entries(BASELINE_SELLER_SHARE).forEach(([name, share]) => {
+    const row = ensure(name)
+    row.revenue += Math.round(baseRev * share)
+    row.units += Math.round(baseUnits * share)
+    row.receipts += Math.round((baseUnits * share) / 1.4)
+  })
+  monthSales(sales, queue).forEach((s) => {
+    const row = ensure(s.sellerName)
+    row.revenue += saleTotal(s)
+    row.units += s.lines.reduce((x, l) => x + l.qty, 0)
+    row.receipts += 1
   })
   return Object.entries(bySeller).map(([seller, v]) => ({ seller, ...v })).sort((a, b) => b.revenue - a.revenue)
 }

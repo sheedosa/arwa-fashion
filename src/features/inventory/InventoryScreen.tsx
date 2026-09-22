@@ -119,10 +119,11 @@ export function InventoryScreen() {
           {(isOwner ? BRANCHES : BRANCHES.filter((b) => b.id === branch)).map((b) => (
             <Chip key={b.id} label={nm(b.name)} selected={activeBranch === b.id} onClick={() => { setChip({ base: branch, pick: b.id }); setShown(PAGE) }} />
           ))}
-          <span className="text-muted" style={{ fontSize: 'var(--fs-meta)', marginInlineStart: 'auto', alignSelf: 'center', whiteSpace: 'nowrap' }}>
-            {t.showingOf} {Math.min(shown, allRows.length)} {t.ofTotal} {allRows.length}
-          </span>
         </div>
+        {/* Its own line: inside the scrolling chip strip it was clipped on phones. */}
+        <span className="text-muted" style={{ fontSize: 'var(--fs-meta)', flex: '1 1 100%' }}>
+          {t.showingOf} {Math.min(shown, allRows.length)} {t.ofTotal} {allRows.length}
+        </span>
       </div>
       {isPhone && ledgerCard}
       <div className="grid-2" style={{ '--grid-2-cols': 'minmax(0,2fr) minmax(280px,1fr)' } as CSSProperties}>

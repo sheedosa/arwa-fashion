@@ -19,7 +19,7 @@ Sign in as any of three roles to see how the interface changes:
 | Role | Sees |
 |---|---|
 | **المالكة** / Owner | Everything — all branches, dashboard, reports, cost prices and margin |
-| **مدير فرع** / Branch manager | Own branch: stock, transfers, purchasing, expenses, branch reports |
+| **مدير فرع** / Branch manager | Own branch only: stock, returns, transfers out, purchasing (without landed cost), stock counts, cash close, branch expenses. No dashboard, reports or P&L |
 | **كاشير** / Cashier | Sell, return, look up stock and customers. **No cost or margin anywhere**, including CSV exports |
 
 Worth trying:
@@ -37,7 +37,8 @@ Worth trying:
 
 The system is built to be used on a phone or tablet at the till, not just viewed:
 
-- **Phone (< 640px)** — the sidebar becomes a hamburger drawer; the POS shows
+- **Phone (< 640px)** — navigation is a hamburger drawer (as on every screen below
+  1024px); the POS shows
   products as full-width rows with a persistent bottom bar carrying the running
   total and **Pay**, so the fast path (scan, scan, scan, Pay) never opens the cart.
   Wide tables (purchasing, transfers, stock counts…) stack into labelled cards.
@@ -82,12 +83,14 @@ npx tsc -b       # typecheck only
 - Returns and exchanges — restock correctly, linked to the original sale
 - Inter-branch transfers — request → send → receive
 - Customers — quick-create from a +218 phone number, purchase history, WhatsApp
-- Daily cash reconciliation — per-currency expected vs counted, variance, close-of-day lock
-- Owner dashboard — today and month to date, top sellers, by branch, all in USD
+- Daily cash reconciliation — per-currency expected vs counted (cash in, change out,
+  refunds), variance, close-of-day lock that blocks further postings at that branch
+- Owner dashboard — today and the current calendar month (live receipts + a seeded
+  month-to-date baseline), top sellers, by branch, all in USD
 
 **Phase 2**
-- Purchase orders and shipments — freight, customs and clearing allocated across
-  received units to compute landed unit cost
+- Purchase orders and shipments — freight, customs and clearing spread over the units
+  ordered, landed cost averaged into existing stock, receipts distributed by size
 - Expenses and a simple P&L, per branch and consolidated
 - Stock counts — expected vs counted, posted as a single adjustment
 - Reports — sell-through by style, size-run analysis, dead-stock aging, margin by
@@ -101,6 +104,31 @@ npx tsc -b       # typecheck only
 - **Every amount carries an explicit currency.** Prices are set and reported in USD;
   when a payment is taken in LYD, both the LYD taken and the USD equivalent are shown.
 - **Cost and margin are invisible to cashiers** everywhere in the UI, including exports.
+  Branch managers see supplier unit prices on their own purchase orders and nothing else.
+- **A receipt line is returned once; a closed day is closed.** Stock never goes negative:
+  a transfer or sale is refused when the branch does not hold the units.
+
+## Demo script
+
+Log in as **المالكة** (owner) unless a step says otherwise. Everything below uses seeded data.
+
+1. **Sell** — POS → type `ARW-1101-M-BLK` and Enter twice (or scan barcode `62200001001`),
+   set the order discount to 10 %, Pay → tap "المتبقي د.ل" then add 10 more dinars →
+   change shows in dinars → Complete → the receipt prints on its own.
+2. **Reconcile** — إقفال الصندوق: the LYD drawer includes that sale minus the change.
+   Close the day, go back to POS: the till is locked with a banner.
+3. **Return** — المرتجعات → search `2112` → return the line → it's marked مُرتجَع and cannot
+   be returned again.
+4. **Move stock** — التحويلات: the كاب فرو كبير أبيض is sold out at قرقارش (the form shows
+   0 available and refuses); transfer it *to* قرقارش from سوق الجمعة instead, Send, Receive.
+5. **Buy stock** — المشتريات → receive PO-502's remaining 30 units → the landed cost
+   averages in; the Inventory ledger shows the receipt lines.
+6. **Add an item** — المنتجات → منتج جديد: photo, type, supplier, quantities per size ×
+   colour, branch → it appears with متوفر and an opening-stock ledger row.
+7. **Roles** — log in as **مدير فرع** (سوق الجمعة): no dashboard, reports, cost column or
+   P&L; branch fixed everywhere. As **كاشير**: sell and return only.
+8. **Phone** — open the same URL on a phone: drawer navigation, full-width POS rows,
+   bottom Pay bar, card layouts, the add-item sheet with its size × colour matrix.
 
 ## Architecture
 

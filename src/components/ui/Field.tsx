@@ -5,17 +5,16 @@ import { Children, cloneElement, isValidElement, useId, type CSSProperties, type
  *  readers announce it. */
 export function Field({ label, children, style, className }: { label: string; children: ReactNode; style?: CSSProperties; className?: string }) {
   const id = useId()
-  let linked = false
-  const kids = Children.map(children, (child) => {
-    if (linked || !isValidElement(child)) return child
-    const el = child as ReactElement<{ id?: string }>
-    if (typeof el.type === 'string' && !['input', 'select', 'textarea'].includes(el.type)) return child
-    linked = true
-    return el.props.id ? child : cloneElement(el, { id })
-  })
+  const arr = Children.toArray(children)
+  const isControl = (c: unknown): c is ReactElement<{ id?: string }> =>
+    isValidElement(c) && (typeof c.type !== 'string' || ['input', 'select', 'textarea'].includes(c.type))
+  const at = arr.findIndex(isControl)
+  const target = at >= 0 ? (arr[at] as ReactElement<{ id?: string }>) : null
+  const linkId = target ? target.props.id || id : undefined
+  const kids = arr.map((c, i) => (i === at && target && !target.props.id ? cloneElement(target, { id }) : c))
   return (
     <div className={['field', className].filter(Boolean).join(' ')} style={style}>
-      <label htmlFor={linked ? id : undefined}>{label}</label>
+      <label htmlFor={linkId}>{label}</label>
       {kids}
     </div>
   )

@@ -32,7 +32,7 @@ export function LoginScreen() {
   }
 
   return (
-    <div style={{ minHeight: '100dvh', display: 'grid', placeItems: 'center', padding: 'var(--gap) var(--gutter)' }}>
+    <div style={{ minHeight: '100dvh', display: 'grid', placeItems: 'safe center', padding: 'var(--gap) var(--gutter)' }}>
       <div style={{ width: 'min(760px,100%)', display: 'flex', flexDirection: 'column', gap: 28 }}>
         <div>
           {/* Latin kicker: tracking is fine here because the line is mostly Latin; the

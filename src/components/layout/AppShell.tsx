@@ -41,9 +41,12 @@ export function AppShell() {
   // iOS still rubber-bands the document behind a fixed overlay without this.
   useEffect(() => {
     if (!navOpen || isDesktop) return
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = prev }
+    // The page scroller is .app-scroll (the shell itself is overflow:hidden), so that is
+    // what has to freeze while the drawer is open.
+    const scroller = document.querySelector<HTMLElement>('.app-scroll')
+    const prev = scroller?.style.overflow ?? ''
+    if (scroller) scroller.style.overflow = 'hidden'
+    return () => { if (scroller) scroller.style.overflow = prev }
   }, [navOpen, isDesktop])
 
   const modal = navOpen && !isDesktop
