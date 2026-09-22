@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { useIsPhone } from '../../lib/useMediaQuery'
+import { useI18n } from '../../lib/i18n'
 
 export interface Column<T> {
   /** React key + stable identity. */
@@ -40,11 +41,14 @@ export interface DataTableProps<T> {
 
 export function DataTable<T>({ rows, columns, rowKey, empty, mobile = 'cards', stacked, pane }: DataTableProps<T>) {
   const isPhone = useIsPhone()
+  const { t } = useI18n()
   const cols = columns.filter((c) => !c.hidden)
   const asCards = stacked ?? (mobile === 'cards' && isPhone)
+  // A bare header row over nothing reads as "broken"; every table gets a real empty state.
+  const emptyNode = empty ?? <div className="text-muted" style={{ padding: '28px 12px', textAlign: 'center', fontSize: 'var(--fs-body)' }}>{t.noResults}</div>
 
+  if (rows.length === 0) return <>{emptyNode}</>
   if (asCards) {
-    if (rows.length === 0 && empty) return <>{empty}</>
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {rows.map((row) => <RowCard key={rowKey(row)} row={row} cols={cols} />)}

@@ -5,6 +5,7 @@ import { useStore } from '../../store/useStore'
 import { useIsPhone } from '../../lib/useMediaQuery'
 import { BRANCHES } from '../../lib/mockData'
 import { variantMeta, productName } from '../../lib/variantDisplay'
+import { refuseKey } from '../../lib/refuse'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Field'
@@ -33,8 +34,18 @@ export function StockCountsScreen() {
   const openSession = openSessionId ? stockCounts.find((s) => s.id === openSessionId) : null
   const cardShell = { padding: isPhone ? 0 : '6px 14px', background: isPhone ? 'transparent' : undefined }
 
-  const start = () => { startStockCount(branch); flash(t.startCount) }
-  const post = (id: string) => { postStockCount(id); flash(t.postedNote); setOpenSessionId(null) }
+  // Starting opens the session straight away; a second tap resumes the open one.
+  const start = () => {
+    const hadOpen = stockCounts.some((s) => s.branchId === branch && s.status === 'open')
+    const id = startStockCount(branch)
+    if (hadOpen) flash(t.countResumed)
+    setOpenSessionId(id)
+  }
+  const post = (id: string) => {
+    const res = postStockCount(id)
+    flash(res.ok ? t.postedNote : t[refuseKey(res.reason)])
+    if (res.ok) setOpenSessionId(null)
+  }
 
   if (openSession) {
     const enteredCount = openSession.lines.filter((l) => l.countedQty != null).length
@@ -95,7 +106,7 @@ export function StockCountsScreen() {
       <Card style={cardShell}>
         <DataTable rows={sessions} columns={sessionColumns} rowKey={(s) => s.id} />
       </Card>
-      <span className="text-muted" style={{ fontSize: 'var(--fs-meta)' }}>{t.stockNote}</span>
+      <span className="text-muted" style={{ fontSize: 'var(--fs-meta)' }}>{t.stockCountNote}</span>
     </div>
   )
 }

@@ -14,6 +14,7 @@ export function ReconciliationScreen() {
   const branch = useStore((s) => s.branch)
   const sales = useStore((s) => s.sales)
   const queue = useStore((s) => s.queue)
+  const returns = useStore((s) => s.returns)
   const cashCounted = useStore((s) => s.cashCounted)
   const closedDays = useStore((s) => s.closedDays)
   const setCashCounted = useStore((s) => s.setCashCounted)
@@ -27,17 +28,21 @@ export function ReconciliationScreen() {
   const todaysSales = [...sales, ...queue].filter((s) => s.date === td && s.branchId === branch)
   let cashUsd = 0, cashLyd = 0
   todaysSales.forEach((s) => {
+    const paidCash = s.payments.some((p) => p.method === 'cash')
     s.payments.forEach((p) => { if (p.method === 'cash') { if (p.currency === 'USD') cashUsd += p.amount; else cashLyd += p.amount } })
-    if (s.change) { if (s.change.currency === 'USD') cashUsd -= s.change.amount; else cashLyd -= s.change.amount }
+    // Change leaves the drawer only when cash came in; a card overpayment is refunded to the card.
+    if (s.change && paidCash) { if (s.change.currency === 'USD') cashUsd -= s.change.amount; else cashLyd -= s.change.amount }
   })
-  const expUsd = branchInfo.openingFloatUsd + cashUsd
+  // Refunds are paid out of the USD drawer today, at this branch.
+  const refundsUsd = returns.filter((r) => r.date === td && r.branchId === branch).reduce((a, r) => a + r.refundUsd, 0)
+  const expUsd = branchInfo.openingFloatUsd + cashUsd - refundsUsd
   const expLyd = branchInfo.openingFloatLyd + cashLyd
   const cnt = cashCounted[branch] || { usd: '', lyd: '' }
   const cUsd = parseFloat(cnt.usd), cLyd = parseFloat(cnt.lyd)
   const varUsd = isNaN(cUsd) ? null : cUsd - expUsd
   const varLyd = isNaN(cLyd) ? null : cLyd - expLyd
   const varColor = (v: number | null) => (v == null || Math.abs(v) < 0.01 ? 'var(--color-neutral-400)' : 'var(--color-accent-300)')
-  const varStr = (v: number | null, fmt: (n: number) => string) => (v == null ? '—' : (v > 0.01 ? '+' : '') + fmt(v))
+  const varStr = (v: number | null, fmt: (n: number) => string) => (v == null ? '—' : (v > 0.01 ? '+' : '') + fmt(v))  // negatives already carry '−'
 
   const close = () => { closeDay(branch); flash(t.closedT) }
 
@@ -58,6 +63,7 @@ export function ReconciliationScreen() {
           <span className="card-kicker">USD $</span>
           <Row label={t.openFloat} value={fmtUsd(branchInfo.openingFloatUsd)} />
           <Row label={t.cashSales} value={fmtUsd(cashUsd)} />
+          {refundsUsd > 0 && <Row label={t.refundsToday} value={'−' + fmtUsd(refundsUsd)} />}
           <Row label={t.expected} value={fmtUsd(expUsd)} bold />
           <Field label={t.counted}>
             <Input kind="money" style={{ fontSize: 'var(--fs-num)' }} value={cnt.usd} onChange={(e) => setCashCounted(branch, 'usd', e.target.value)} disabled={dayClosed} />
@@ -76,7 +82,7 @@ export function ReconciliationScreen() {
         </Card>
       </div>
       <span className="text-muted" style={{ fontSize: 'var(--fs-meta)' }}>
-        {(lang === 'ar' ? 'المتوقع = رصيد الافتتاح + المبيعات النقدية − الباقي المدفوع، لكل عملة على حدة · ' : 'Expected = opening float + cash sales − change given, per currency · ')}
+        {(lang === 'ar' ? 'المتوقع = رصيد الافتتاح + المبيعات النقدية − الباقي المدفوع − المرتجعات، لكل عملة على حدة · ' : 'Expected = opening float + cash sales − change given − refunds, per currency · ')}
         {todaysSales.length} {lang === 'ar' ? 'فاتورة اليوم بهذا الفرع' : 'receipts today at this branch'}
       </span>
       <Button variant="primary" style={{ alignSelf: 'flex-start', minHeight: 46 }} onClick={close} disabled={dayClosed}>

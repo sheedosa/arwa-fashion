@@ -9,7 +9,7 @@ import {
   TRANSFERS, SUPPLIERS, seedPurchaseOrders, seedExpenses, seedStockCounts, todayStr,
 } from '../lib/mockData'
 import { ITEM_TYPE_NAMES } from '../lib/itemTypes'
-import { lineTotal, saleTotal } from '../lib/calc'
+import { lineTotal, saleTotal, computeChange } from '../lib/calc'
 
 const DEMO_USERS: Record<Role, User> = {
   owner: { id: 'u-owner', role: 'owner', name: 'أروى الهوني', branchId: 'tr' },
@@ -39,6 +39,20 @@ export interface NewProductDraft {
   colors: ColorCode[]
   branchId: BranchId
   quantities: Record<string, number>
+}
+
+/** Why a write was refused — screens map it to a localised toast. */
+export type RefuseReason = 'closed' | 'stock' | 'payment' | 'duplicate' | 'invalid'
+export type ActionResult = { ok: true } | { ok: false; reason: RefuseReason }
+export type SaleResult = { ok: true; sale: Sale } | { ok: false; reason: RefuseReason }
+
+const dayClosed = (closedDays: Record<string, boolean>, branchId: BranchId) => !!closedDays[branchId + ':' + todayStr()]
+
+/** Line indexes of a sale that have already gone back. */
+export function returnedLineIndexes(returns: ReturnRecord[], sale: Sale): Set<number> {
+  const out = new Set<number>()
+  returns.filter((r) => r.saleNo === sale.no).forEach((r) => r.lineIndexes.forEach((i) => out.add(i)))
+  return out
 }
 
 interface CartLine {
@@ -104,27 +118,34 @@ interface AppState {
 
   // actions — cart / POS
   addToCart: (sku: string) => void
-  bumpCartLine: (sku: string, delta: number) => void
+  /** false when the requested quantity exceeds stock at the current branch. */
+  bumpCartLine: (sku: string, delta: number) => boolean
   setCartLineDiscount: (sku: string, pct: number) => void
   removeCartLine: (sku: string) => void
   setOrderDiscount: (pct: number) => void
-  completeSale: (args: { payUsd: number; payLyd: number; method: PayMethod; custPhone: string }) => Sale | null
+  completeSale: (args: { payUsd: number; payLyd: number; method: PayMethod; custPhone: string }) => SaleResult
 
   // actions — returns
-  processReturn: (saleNo: string, lineIndexes: number[], reason: ReturnRecord['reason']) => void
+  /** false when the day is closed or every picked line was already returned. */
+  processReturn: (saleNo: string, lineIndexes: number[], reason: ReturnRecord['reason']) => boolean
 
   // actions — transfers
-  requestTransfer: (from: BranchId, to: BranchId, sku: string, qty: number) => void
-  advanceTransfer: (id: string) => void
+  /** false when the source branch does not hold that many units. */
+  requestTransfer: (from: BranchId, to: BranchId, sku: string, qty: number) => boolean
+  /** Refused when the source can no longer cover the quantity or the day is closed. */
+  advanceTransfer: (id: string) => ActionResult
 
   // actions — customers
-  addCustomer: (phone: string, name: string) => void
+  /** false when the phone number already belongs to a customer. */
+  addCustomer: (phone: string, name: string) => boolean
 
   // actions — products
   /** Returns false (and changes nothing) when the style code already exists. */
   addProduct: (draft: NewProductDraft) => boolean
   /** Returns the id — an existing supplier's when the name already matches. */
   addSupplier: (name: string) => string
+  /** Owner-only edit of the descriptive fields; code, sizes and colours are fixed. */
+  updateProduct: (code: string, patch: Partial<Pick<Product, 'name' | 'typeId' | 'supplierId' | 'image' | 'price' | 'cost'>>) => void
 
   // actions — reconciliation
   setCashCounted: (branchId: BranchId, field: 'usd' | 'lyd', value: string) => void
@@ -132,16 +153,17 @@ interface AppState {
 
   // actions — phase 2 purchasing
   createPurchaseOrder: (po: { supplierId: string; branchId: BranchId; items: { productCode: string; qtyOrdered: number; unitCostUsd: number }[]; freightUsd: number; customsUsd: number; clearingUsd: number }) => void
-  receivePurchaseOrder: (poId: string, receipts: { productCode: string; qty: number }[]) => void
+  receivePurchaseOrder: (poId: string, receipts: { productCode: string; qty: number }[]) => ActionResult
   closePurchaseOrder: (poId: string) => void
 
   // actions — phase 2 expenses
-  addExpense: (e: { branchId: BranchId; date: string; category: Expense['category']; description: string; amountUsd: number }) => void
+  addExpense: (e: { branchId: BranchId; date: string; category: Expense['category']; description: string; amountUsd: number }) => boolean
 
   // actions — phase 2 stock counts
-  startStockCount: (branchId: BranchId) => void
+  /** Returns the session id — the already-open one when a count is in progress at that branch. */
+  startStockCount: (branchId: BranchId) => string
   setStockCountLine: (sessionId: string, sku: string, countedQty: number | null) => void
-  postStockCount: (sessionId: string) => void
+  postStockCount: (sessionId: string) => ActionResult
 
   // settings
   setFxRate: (rate: number) => void
@@ -206,8 +228,11 @@ export const useStore = create<AppState>((set, get) => ({
     const u = DEMO_USERS[role]
     set({ user: u, branch: u.branchId })
   },
-  logout: () => set({ user: null, cart: [], orderDiscountPct: 0 }),
-  setBranch: (b) => set({ branch: b }),
+  // A session ends cleanly: the next person must not inherit a cart, a queue or a
+  // half-typed cash count.
+  logout: () => set({ user: null, cart: [], orderDiscountPct: 0, offline: false, queue: [], cashCounted: {} }),
+  // The cart was priced and stock-checked against the old branch.
+  setBranch: (b) => set((st) => (st.branch === b ? {} : { branch: b, cart: [], orderDiscountPct: 0 })),
   toggleOffline: () => {
     const st = get()
     if (st.offline && st.queue.length) {
@@ -227,7 +252,8 @@ export const useStore = create<AppState>((set, get) => ({
     const q = st.inventory[sku]?.[st.branch] || 0
     const existing = st.cart.find((l) => l.sku === sku)
     if ((existing ? existing.qty : 0) + 1 > q) return
-    const product = st.products.find((p) => sku.startsWith(p.code + '-'))
+    const product = productForSku(st.products, sku, st.variants)
+    if (!product) return
     const cart = existing
       ? st.cart.map((l) => (l.sku === sku ? { ...l, qty: l.qty + 1 } : l))
       : [...st.cart, { sku, qty: 1, price: product?.price ?? 0, discountPct: 0 }]
@@ -237,8 +263,9 @@ export const useStore = create<AppState>((set, get) => ({
     const st = get()
     const cart = st.cart.map((l) => (l.sku === sku ? { ...l, qty: l.qty + d } : l)).filter((l) => l.qty > 0)
     const l = cart.find((x) => x.sku === sku)
-    if (l && l.qty > (st.inventory[sku]?.[st.branch] || 0)) return
+    if (l && l.qty > (st.inventory[sku]?.[st.branch] || 0)) return false
     set({ cart })
+    return true
   },
   setCartLineDiscount: (sku, pct) => {
     const clamped = Math.min(90, Math.max(0, pct || 0))
@@ -249,12 +276,16 @@ export const useStore = create<AppState>((set, get) => ({
 
   completeSale: ({ payUsd, payLyd, method, custPhone }) => {
     const st = get()
-    if (!st.cart.length || !st.user) return null
+    if (!st.cart.length || !st.user) return { ok: false, reason: 'invalid' }
+    if (dayClosed(st.closedDays, st.branch)) return { ok: false, reason: 'closed' }
+    if (!(payUsd >= 0) || !(payLyd >= 0) || !Number.isFinite(payUsd + payLyd)) return { ok: false, reason: 'payment' }
+    // The cart was checked line by line as it grew; check the whole basket once more
+    // against live stock — a transfer or another till may have moved units since.
+    if (st.cart.some((l) => l.qty > (st.inventory[l.sku]?.[st.branch] || 0))) return { ok: false, reason: 'stock' }
     const total = saleTotal({ lines: st.cart, orderDiscountPct: st.orderDiscountPct })
     const paid = payUsd + payLyd / st.fxRate
-    if (paid < total - 0.01) return null
-    const over = paid - total
-    const change = over > 0.01 ? (payLyd > 0 ? { currency: 'LYD' as const, amount: over * st.fxRate } : { currency: 'USD' as const, amount: over }) : null
+    if (paid < total - 0.01) return { ok: false, reason: 'payment' }
+    const change = computeChange(total, payUsd, payLyd, st.fxRate)
 
     let customers = st.customers
     let custSeq = st.custSeq
@@ -286,43 +317,62 @@ export const useStore = create<AppState>((set, get) => ({
       queue: st.offline ? [sale, ...st.queue] : st.queue,
       cart: [], orderDiscountPct: 0,
     })
-    return sale
+    return { ok: true, sale }
   },
 
   processReturn: (saleNo, lineIndexes, reason) => {
     const st = get()
     const sale = st.sales.find((s) => s.no === saleNo)
-    if (!sale || !lineIndexes.length || !st.user) return
-    const picked = sale.lines.filter((_, i) => lineIndexes.includes(i))
+    if (!sale || !lineIndexes.length || !st.user) return false
+    if (dayClosed(st.closedDays, sale.branchId)) return false
+    // A line goes back once. Returns are keyed to the sale by line index.
+    const already = returnedLineIndexes(st.returns, sale)
+    const idx = lineIndexes.filter((i) => !already.has(i))
+    if (!idx.length) return false
+    const picked = sale.lines.filter((_, i) => idx.includes(i))
     const { inventory, movements } = applyMoves(st.inventory, st.movements, picked.map((l) => ({ type: 'return' as const, sku: l.sku, qty: l.qty, branchId: sale.branchId, userName: st.user!.name.split(' ')[0] })))
     const refundUsd = picked.reduce((a, l) => a + lineTotal(l), 0) * (1 - (sale.orderDiscountPct || 0) / 100)
-    const rec: ReturnRecord = { id: 'RET-' + retSeq++, saleNo, date: todayStr(), branchId: sale.branchId, lines: picked, reason, refundUsd, userName: st.user.name.split(' ')[0] }
+    const rec: ReturnRecord = { id: 'RET-' + retSeq++, saleNo, date: todayStr(), branchId: sale.branchId, lines: picked, lineIndexes: idx, reason, refundUsd, userName: st.user.name.split(' ')[0] }
     set({ inventory, movements, returns: [rec, ...st.returns] })
+    return true
   },
 
   requestTransfer: (from, to, sku, qty) => {
     const st = get()
-    if (from === to || qty <= 0) return
+    if (from === to || !(qty > 0) || !st.variants.some((v) => v.sku === sku)) return false
+    if (qty > (st.inventory[sku]?.[from] || 0)) return false
     set({ transfers: [{ id: 'T-' + st.trSeq, date: todayStr(), from, to, sku, qty, status: 'requested' }, ...st.transfers], trSeq: st.trSeq + 1 })
+    return true
   },
   advanceTransfer: (id) => {
     const st = get()
-    if (!st.user) return
+    if (!st.user) return { ok: false, reason: 'invalid' }
     const t = st.transfers.find((x) => x.id === id)
-    if (!t) return
+    if (!t) return { ok: false, reason: 'invalid' }
     const userName = st.user.name.split(' ')[0]
     if (t.status === 'requested') {
+      if (dayClosed(st.closedDays, t.from)) return { ok: false, reason: 'closed' }
+      // Stock may have been sold since the request — never let the ledger go negative.
+      if (t.qty > (st.inventory[t.sku]?.[t.from] || 0)) return { ok: false, reason: 'stock' }
       const { inventory, movements } = applyMoves(st.inventory, st.movements, [{ type: 'transferOut', sku: t.sku, qty: -t.qty, branchId: t.from, userName }])
       set({ inventory, movements, transfers: st.transfers.map((x) => (x.id === id ? { ...x, status: 'sent' } : x)) })
-    } else if (t.status === 'sent') {
+      return { ok: true }
+    }
+    if (t.status === 'sent') {
+      if (dayClosed(st.closedDays, t.to)) return { ok: false, reason: 'closed' }
       const { inventory, movements } = applyMoves(st.inventory, st.movements, [{ type: 'transferIn', sku: t.sku, qty: t.qty, branchId: t.to, userName }])
       set({ inventory, movements, transfers: st.transfers.map((x) => (x.id === id ? { ...x, status: 'received' } : x)) })
+      return { ok: true }
     }
+    return { ok: false, reason: 'invalid' }
   },
 
   addCustomer: (phone, name) => {
     const st = get()
+    const digits = phone.replace(/\D/g, '')
+    if (st.customers.some((c) => c.phone.replace(/\D/g, '') === digits)) return false
     set({ customers: [...st.customers, { id: st.custSeq, name: name.trim(), phone, points: 0, sizePreferences: '—', lastPurchaseDate: null }], custSeq: st.custSeq + 1 })
+    return true
   },
 
   addSupplier: (name) => {
@@ -373,6 +423,8 @@ export const useStore = create<AppState>((set, get) => ({
     return true
   },
 
+  updateProduct: (code, patch) => set((st) => ({ products: st.products.map((p) => (p.code === code ? { ...p, ...patch } : p)) })),
+
   setCashCounted: (branchId, field, value) => set((st) => ({ cashCounted: { ...st.cashCounted, [branchId]: { ...st.cashCounted[branchId], [field]: value } } })),
   closeDay: (branchId) => set((st) => ({ closedDays: { ...st.closedDays, [branchId + ':' + todayStr()]: true } })),
 
@@ -380,48 +432,74 @@ export const useStore = create<AppState>((set, get) => ({
     const st = get()
     const po: PurchaseOrder = {
       id: 'PO-' + poSeq++, supplierId, branchId, date: todayStr(), status: 'ordered',
-      items: items.map((i) => ({ productCode: i.productCode, sizeBreakdown: {}, qtyOrdered: i.qtyOrdered, qtyReceived: 0, unitCostUsd: i.unitCostUsd })),
+      // Two rows for the same style become one line, so receiving can key by code.
+      items: Object.values(items.reduce<Record<string, PurchaseOrder['items'][number]>>((acc, i) => {
+        const cur = acc[i.productCode]
+        acc[i.productCode] = cur
+          ? { ...cur, qtyOrdered: cur.qtyOrdered + i.qtyOrdered, unitCostUsd: (cur.unitCostUsd * cur.qtyOrdered + i.unitCostUsd * i.qtyOrdered) / (cur.qtyOrdered + i.qtyOrdered) }
+          : { productCode: i.productCode, sizeBreakdown: {}, qtyOrdered: i.qtyOrdered, qtyReceived: 0, unitCostUsd: i.unitCostUsd }
+        return acc
+      }, {})),
       freightUsd, customsUsd, clearingUsd,
     }
     set({ purchaseOrders: [po, ...st.purchaseOrders] })
   },
 
-  receivePurchaseOrder: (poId, receipts) => {
+  receivePurchaseOrder: (poId, rawReceipts) => {
     const st = get()
     const po = st.purchaseOrders.find((p) => p.id === poId)
-    if (!po || !st.user) return
-    const totalUnits = receipts.reduce((a, r) => a + r.qty, 0)
-    if (totalUnits <= 0) return
-    const overheadPerUnit = (po.freightUsd + po.customsUsd + po.clearingUsd) / totalUnits
+    if (!po || !st.user) return { ok: false, reason: 'invalid' }
+    if (dayClosed(st.closedDays, po.branchId)) return { ok: false, reason: 'closed' }
+    // Merge by code and cap at what is still outstanding on the order.
+    const receipts = Object.values(rawReceipts.reduce<Record<string, { productCode: string; qty: number }>>((acc, r) => {
+      const item = po.items.find((i) => i.productCode === r.productCode)
+      if (!item) return acc
+      const outstanding = item.qtyOrdered - item.qtyReceived - (acc[r.productCode]?.qty || 0)
+      const qty = Math.min(Math.max(0, Math.floor(r.qty)), Math.max(0, outstanding))
+      if (qty > 0) acc[r.productCode] = { productCode: r.productCode, qty: (acc[r.productCode]?.qty || 0) + qty }
+      return acc
+    }, {}))
+    if (!receipts.length) return { ok: false, reason: 'invalid' }
+    // Freight, customs and clearing are spread over the units ORDERED, so partial
+    // receipts each carry their share and never re-charge the whole shipment.
+    const orderedUnits = po.items.reduce((a, i) => a + i.qtyOrdered, 0)
+    const overheadPerUnit = orderedUnits > 0 ? (po.freightUsd + po.customsUsd + po.clearingUsd) / orderedUnits : 0
 
-    let inventory = st.inventory
-    let movements = st.movements
     let products = st.products
     const moves: { type: MovementType; sku: string; qty: number; branchId: BranchId; userName: string }[] = []
     const userName = st.user.name.split(' ')[0]
 
     receipts.forEach((r) => {
       const product = products.find((p) => p.code === r.productCode)
-      if (!product) return
       const poItem = po.items.find((i) => i.productCode === r.productCode)
-      // Landed unit cost = supplier price + this line's share of freight/customs/clearing,
-      // allocated evenly per unit across the whole shipment.
-      const landedUnitCost = Math.round(((poItem?.unitCostUsd ?? product.cost) + overheadPerUnit) * 100) / 100
-      products = products.map((p) => (p.code === r.productCode ? { ...p, cost: landedUnitCost } : p))
-      // distribute received units evenly across this product's colour variants for the receiving branch
-      const skus = st.variants.filter((v) => v.productCode === r.productCode).map((v) => v.sku)
-      if (!skus.length) return
+      if (!product || !poItem) return
+      const landedUnitCost = poItem.unitCostUsd + overheadPerUnit
+      // Weighted average with what is already on the shelves, so one shipment never
+      // rewrites the cost of stock bought earlier at another price.
+      const variants = st.variants.filter((v) => v.productCode === r.productCode)
+      const onHand = variants.reduce((a, v) => a + (st.inventory[v.sku]?.tr || 0) + (st.inventory[v.sku]?.bn || 0) + (st.inventory[v.sku]?.ms || 0), 0)
+      const newCost = Math.round(((onHand * product.cost + r.qty * landedUnitCost) / (onHand + r.qty)) * 100) / 100
+      products = products.map((p) => (p.code === r.productCode ? { ...p, cost: newCost } : p))
+      if (!variants.length) return
+      // Distribute: by the order's size breakdown when it has one (spread over that
+      // size's colours), otherwise round-robin one unit at a time — never rounding to zero.
+      const perSku: Record<string, number> = {}
       let remaining = r.qty
-      skus.forEach((sku, i) => {
-        const share = Math.round(r.qty / skus.length)
-        const qty = i === skus.length - 1 ? remaining : Math.min(share, remaining)
-        remaining -= qty
-        if (qty > 0) moves.push({ type: 'receipt', sku, qty, branchId: po.branchId, userName })
-      })
+      const sizesWanted = Object.entries(poItem.sizeBreakdown).filter(([, n]) => (n || 0) > 0)
+      if (sizesWanted.length) {
+        const totalWanted = sizesWanted.reduce((a, [, n]) => a + (n || 0), 0)
+        sizesWanted.forEach(([size, n], si) => {
+          const pool = variants.filter((v) => v.size === size)
+          if (!pool.length) return
+          const share = si === sizesWanted.length - 1 ? remaining : Math.min(remaining, Math.round((r.qty * (n || 0)) / totalWanted))
+          for (let k = 0; k < share; k++) perSku[pool[k % pool.length].sku] = (perSku[pool[k % pool.length].sku] || 0) + 1
+          remaining -= share
+        })
+      }
+      for (let k = 0; remaining > 0; k++, remaining--) perSku[variants[k % variants.length].sku] = (perSku[variants[k % variants.length].sku] || 0) + 1
+      Object.entries(perSku).forEach(([sku, qty]) => moves.push({ type: 'receipt', sku, qty, branchId: po.branchId, userName }))
     })
-    const applied = applyMoves(inventory, movements, moves)
-    inventory = applied.inventory
-    movements = applied.movements
+    const { inventory, movements } = applyMoves(st.inventory, st.movements, moves)
 
     const items = po.items.map((it) => {
       const r = receipts.find((x) => x.productCode === it.productCode)
@@ -433,19 +511,28 @@ export const useStore = create<AppState>((set, get) => ({
 
     set({
       inventory, movements, products,
-      purchaseOrders: st.purchaseOrders.map((p) => (p.id === poId ? { ...p, items, status, receivedDate: todayStr() } : p)),
+      purchaseOrders: st.purchaseOrders.map((p) => (p.id === poId ? { ...p, items, status, receivedDate: p.receivedDate || todayStr() } : p)),
     })
+    return { ok: true }
   },
 
   closePurchaseOrder: (poId) => set((st) => ({ purchaseOrders: st.purchaseOrders.map((p) => (p.id === poId ? { ...p, status: 'closed' } : p)) })),
 
-  addExpense: (e) => set((st) => ({ expenses: [{ id: 'EXP-' + expSeq++, ...e }, ...st.expenses] })),
+  addExpense: (e) => {
+    if (!Number.isFinite(e.amountUsd) || e.amountUsd <= 0 || !e.description.trim()) return false
+    set((st) => ({ expenses: [{ id: 'EXP-' + expSeq++, ...e }, ...st.expenses] }))
+    return true
+  },
 
   startStockCount: (branchId) => {
     const st = get()
+    // One open session per branch: a second tap resumes the count instead of duplicating it.
+    const open = st.stockCounts.find((s) => s.branchId === branchId && s.status === 'open')
+    if (open) return open.id
     const lines = st.variants.map((v) => ({ sku: v.sku, expectedQty: st.inventory[v.sku]?.[branchId] || 0, countedQty: null as number | null }))
     const session: StockCountSession = { id: 'SC-' + scSeq++, branchId, date: todayStr(), status: 'open', userName: st.user?.name.split(' ')[0] || '—', lines }
     set({ stockCounts: [session, ...st.stockCounts] })
+    return session.id
   },
   setStockCountLine: (sessionId, sku, countedQty) => set((st) => ({
     stockCounts: st.stockCounts.map((s) => (s.id === sessionId ? { ...s, lines: s.lines.map((l) => (l.sku === sku ? { ...l, countedQty } : l)) } : s)),
@@ -453,22 +540,34 @@ export const useStore = create<AppState>((set, get) => ({
   postStockCount: (sessionId) => {
     const st = get()
     const session = st.stockCounts.find((s) => s.id === sessionId)
-    if (!session || !st.user || session.status === 'posted') return
+    if (!session || !st.user || session.status === 'posted') return { ok: false, reason: 'invalid' }
+    if (dayClosed(st.closedDays, session.branchId)) return { ok: false, reason: 'closed' }
     const userName = st.user.name.split(' ')[0]
+    // The shelf count is the truth: adjust from LIVE on-hand (not the figure shown when
+    // the session opened), so a sale made mid-count doesn't corrupt the result.
     const moves = session.lines
-      .filter((l) => l.countedQty != null && l.countedQty !== l.expectedQty)
-      .map((l) => ({ type: 'countAdjustment' as const, sku: l.sku, qty: (l.countedQty as number) - l.expectedQty, branchId: session.branchId, userName, reason: 'stock count' }))
+      .filter((l) => l.countedQty != null)
+      .map((l) => ({ type: 'countAdjustment' as const, sku: l.sku, qty: (l.countedQty as number) - (st.inventory[l.sku]?.[session.branchId] || 0), branchId: session.branchId, userName, reason: 'stock count' }))
+      .filter((m) => m.qty !== 0)
     const { inventory, movements } = applyMoves(st.inventory, st.movements, moves)
     set({
       inventory, movements,
       stockCounts: st.stockCounts.map((s) => (s.id === sessionId ? { ...s, status: 'posted', postedAt: todayStr() } : s)),
     })
+    return { ok: true }
   },
 
   setFxRate: (rate) => set({ fxRate: rate }),
   setLowStockThreshold: (n) => set({ lowStockThreshold: n }),
 }))
 
-export function productForSku(products: Product[], sku: string): Product | undefined {
-  return products.find((p) => sku.startsWith(p.code + '-'))
+/** Exact lookup through the variant index — a prefix match would confuse `ARW-1101`
+ *  with a later `ARW-1101-A`. Falls back to the longest matching code for SKUs that
+ *  predate the variant list (none today). */
+export function productForSku(products: Product[], sku: string, variants?: Variant[]): Product | undefined {
+  const v = variants?.find((x) => x.sku === sku)
+  if (v) return products.find((p) => p.code === v.productCode)
+  let best: Product | undefined
+  for (const p of products) if (sku.startsWith(p.code + '-') && (!best || p.code.length > best.code.length)) best = p
+  return best
 }

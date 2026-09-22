@@ -1,11 +1,14 @@
 import type { Lang } from './types'
 
 export function fmtUsd(n: number): string {
-  return '$' + (Math.round(n * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const v = Math.round(n * 100) / 100
+  // Sign before the symbol: "−$12.00", never "$-12.00".
+  return (v < 0 ? '−' : '') + '$' + Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 export function fmtLyd(n: number, lang: Lang): string {
-  const v = Math.round(n).toLocaleString('en-US')
+  const r = Math.round(n)
+  const v = (r < 0 ? '−' : '') + Math.abs(r).toLocaleString('en-US')
   return lang === 'ar' ? v + ' د.ل' : 'LYD ' + v
 }
 

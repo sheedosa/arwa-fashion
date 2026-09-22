@@ -125,6 +125,8 @@ export interface ReturnRecord {
   date: string
   branchId: BranchId
   lines: SaleLine[]
+  /** Which lines of the sale went back — a line is returnable once. */
+  lineIndexes: number[]
   reason: ReturnReason
   refundUsd: number
   userName: string
