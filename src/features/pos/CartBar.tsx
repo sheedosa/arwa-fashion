@@ -5,8 +5,8 @@ import { Button } from '../../components/ui/Button'
 
 /** Persistent bottom bar on phones: running total in the thumb zone + Pay.
  *  The fast path (scan, scan, scan, Pay) never needs the cart sheet at all. */
-export function CartBar({ count, total, fxRate, hidden, onOpen, onPay }: {
-  count: number; total: number; fxRate: number; hidden: boolean; onOpen: () => void; onPay: () => void
+export function CartBar({ count, total, fxRate, hidden, payDisabled, onOpen, onPay }: {
+  count: number; total: number; fxRate: number; hidden: boolean; payDisabled?: boolean; onOpen: () => void; onPay: () => void
 }) {
   const { t, lang } = useI18n()
   return (
@@ -30,7 +30,7 @@ export function CartBar({ count, total, fxRate, hidden, onOpen, onPay }: {
         </span>
         {count > 0 && <CaretUp size={16} className="text-muted" style={{ flex: 'none', marginInlineStart: 'auto' }} />}
       </button>
-      <Button variant="primary" style={{ flex: 'none', minHeight: 48, minWidth: 116, fontSize: 17 }} onClick={onPay} disabled={count === 0}>
+      <Button variant="primary" style={{ flex: 'none', minHeight: 48, minWidth: 116, fontSize: 17 }} onClick={onPay} disabled={count === 0 || payDisabled}>
         <Money />{t.pay}
       </Button>
     </div>

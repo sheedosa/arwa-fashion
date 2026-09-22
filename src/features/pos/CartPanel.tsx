@@ -8,7 +8,7 @@ import { Button } from '../../components/ui/Button'
 import { CartLineRow } from './CartLineRow'
 
 /** Cart body + footer, shared by the desktop side card and the phone sheet. */
-export function CartPanel({ compact, onPay }: { compact: boolean; onPay: () => void }) {
+export function CartPanel({ compact, onPay, payDisabled }: { compact: boolean; onPay: () => void; payDisabled?: boolean }) {
   const { t, lang } = useI18n()
   const cart = useStore((s) => s.cart)
   const products = useStore((s) => s.products)
@@ -27,9 +27,9 @@ export function CartPanel({ compact, onPay }: { compact: boolean; onPay: () => v
           <div className="text-muted" style={{ fontSize: 'var(--fs-body)', padding: '24px 0', textAlign: 'center' }}>{t.emptyCart}</div>
         )}
         {cart.map((l) => {
-          const p = products.find((pp) => l.sku.startsWith(pp.code + '-'))!
-          const v = variants.find((vv) => vv.sku === l.sku)!
-          return <CartLineRow key={l.sku} l={l} p={p} v={v} compact={compact} />
+          const v = variants.find((vv) => vv.sku === l.sku)
+          const p = v && products.find((pp) => pp.code === v.productCode)
+          return p && v ? <CartLineRow key={l.sku} l={l} p={p} v={v} compact={compact} /> : null
         })}
       </div>
 
@@ -53,7 +53,7 @@ export function CartPanel({ compact, onPay }: { compact: boolean; onPay: () => v
             <span className="text-muted" style={{ fontSize: 'var(--fs-meta)' }}>≈ {fmtLyd(total * fxRate, lang)}</span>
           </span>
         </div>
-        <Button variant="primary" block style={{ minHeight: compact ? 52 : 46, fontSize: 17.5 }} onClick={onPay} disabled={cart.length === 0}>
+        <Button variant="primary" block style={{ minHeight: compact ? 52 : 46, fontSize: 17.5 }} onClick={onPay} disabled={cart.length === 0 || payDisabled}>
           <Money />{t.pay}
         </Button>
       </div>

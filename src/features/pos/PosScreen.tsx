@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Basket } from '@phosphor-icons/react'
+import { Basket, LockSimple } from '@phosphor-icons/react'
 import { useI18n } from '../../lib/i18n'
 import { useStore } from '../../store/useStore'
 import { useBreakpoint } from '../../lib/useMediaQuery'
 import { useKeyboardOpen } from '../../lib/useKeyboardOpen'
-import { BRANCHES } from '../../lib/mockData'
+import { BRANCHES, todayStr } from '../../lib/mockData'
 import { saleTotal } from '../../lib/calc'
 import { productName } from '../../lib/variantDisplay'
+import { refuseKey } from '../../lib/refuse'
 import { Input } from '../../components/ui/Field'
 import { Card } from '../../components/ui/Card'
 import { Tag, Chip } from '../../components/ui/Tag'
@@ -32,6 +33,7 @@ export function PosScreen() {
   const addToCart = useStore((s) => s.addToCart)
   const flash = useStore((s) => s.flash)
   const fxRate = useStore((s) => s.fxRate)
+  const dayClosed = useStore((s) => !!s.closedDays[s.branch + ':' + todayStr()])
 
   // Side-by-side returns at 900px: at iPad portrait, stacked gives 4 product
   // tiles where a split would give 2. Tiles become full-width rows below 640.
@@ -54,8 +56,8 @@ export function PosScreen() {
       if (!p) return false
       if (cat && p.category.en !== cat) return false
       if (!q) return true
-      return v.sku.toLowerCase().includes(q) || p.name.ar.includes(query.trim()) || p.name.en.toLowerCase().includes(q) || p.code.toLowerCase().includes(q)
-    }).slice(0, 24)
+      return v.sku.toLowerCase().includes(q) || v.barcode.includes(q) || p.name.ar.includes(query.trim()) || p.name.en.toLowerCase().includes(q) || p.code.toLowerCase().includes(q)
+    })
   }, [variants, products, cat, q, query])
 
   const itemCount = cart.reduce((a, l) => a + l.qty, 0)
@@ -71,13 +73,14 @@ export function PosScreen() {
 
   // Stock-refusal detection via before/after compare (addToCart refuses silently).
   const handleAdd = (sku: string) => {
+    if (dayClosed) { flash(t[refuseKey('closed')]); return }
     const before = useStore.getState().cart.find((l) => l.sku === sku)?.qty || 0
     addToCart(sku)
     const after = useStore.getState().cart.find((l) => l.sku === sku)?.qty || 0
     if (after === before) flash(t.noStock)
     else if (!split) {
       // On a phone the tile highlight is easy to miss; a toast is not.
-      const p = products.find((pp) => sku.startsWith(pp.code + '-'))
+      const p = products.find((pp) => pp.code === variants.find((v) => v.sku === sku)?.productCode)
       flash(`${t.added} · ${p ? productName(lang, p) : sku}`)
     }
   }
@@ -103,11 +106,18 @@ export function PosScreen() {
             // Barcode scanners emit keystrokes + Enter. Focus is kept so
             // consecutive scans work.
             if (e.key === 'Enter') {
-              const sku = query.trim().toUpperCase()
-              if (variants.some((v) => v.sku === sku)) { handleAdd(sku); setQuery('') }
+              // A scanner types the barcode; a cashier may type the SKU. Either adds the unit.
+              const code = query.trim().toUpperCase()
+              const hit = variants.find((v) => v.sku === code || v.barcode === code)
+              if (hit) { handleAdd(hit.sku); setQuery('') }
             }
           }}
         />
+        {dayClosed && (
+          <div className="offline-banner" style={{ flex: 'none', borderRadius: 'var(--radius-md)' }}>
+            <LockSimple style={{ flex: 'none' }} />{t.dayClosedMsg}
+          </div>
+        )}
         <div className="chip-row" style={{ flex: 'none' }}>
           <Chip label={t.all} selected={!cat} onClick={() => setCat('')} />
           {categories.map((c) => {
@@ -148,15 +158,15 @@ export function PosScreen() {
             <span style={{ fontWeight: 500 }}>{t.cart}</span>
             <Tag variant="neutral" style={{ marginInlineStart: 'auto' }}>{itemCount}</Tag>
           </div>
-          <CartPanel compact={false} onPay={() => setPayOpen(true)} />
+          <CartPanel compact={false} onPay={() => setPayOpen(true)} payDisabled={dayClosed} />
         </Card>
       ) : (
         <>
-          <CartBar count={itemCount} total={total} fxRate={fxRate} hidden={keyboardOpen}
+          <CartBar count={itemCount} total={total} fxRate={fxRate} hidden={keyboardOpen} payDisabled={dayClosed}
             onOpen={() => setSheetOpen(true)} onPay={() => setPayOpen(true)} />
           {/* stays mounted while PaymentDialog (z 40) is open, so Cancel returns here */}
           <CartSheet open={sheetOpen} count={itemCount} onClose={() => setSheetOpen(false)}>
-            <CartPanel compact onPay={() => setPayOpen(true)} />
+            <CartPanel compact onPay={() => setPayOpen(true)} payDisabled={dayClosed} />
           </CartSheet>
         </>
       )}

@@ -31,6 +31,8 @@ export function Sidebar({ id, open, isDesktop, onClose }: Props) {
   const toggleOffline = useStore((s) => s.toggleOffline)
   const queue = useStore((s) => s.queue)
   const logout = useStore((s) => s.logout)
+  const flash = useStore((s) => s.flash)
+  const onToggleOffline = () => { const syncing = offline && queue.length > 0; toggleOffline(); if (syncing) flash(t.syncedMsg) }
 
   const asideRef = useRef<HTMLElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
@@ -100,10 +102,10 @@ export function Sidebar({ id, open, isDesktop, onClose }: Props) {
             </Select>
           </Field>
         )}
-        <button type="button" className="offline-toggle" data-offline={offline} onClick={toggleOffline} aria-pressed={offline}>
+        <button type="button" className="offline-toggle" data-offline={offline} onClick={onToggleOffline} aria-pressed={offline}>
           {offline ? <WifiSlash size={18} /> : <WifiHigh size={18} />}
           {offline ? (lang === 'ar' ? 'غير متصل' : 'Offline') : (lang === 'ar' ? 'متصل' : 'Online')}
-          {queue.length > 0 && <Tag variant="accent" style={{ marginInlineStart: 'auto' }}>{queue.length}</Tag>}
+          {queue.length > 0 && <Tag variant="accent" style={{ marginInlineStart: 'auto' }}>{queue.length} · {t.inQueue}</Tag>}
         </button>
         <Button variant="secondary" onClick={toggleLang}>{langBtnLabel}</Button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 4 }}>

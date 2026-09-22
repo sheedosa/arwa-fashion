@@ -20,6 +20,10 @@ export function CartLineRow({ l, p, v, compact }: { l: CartLine; p: Product; v: 
   const bumpCartLine = useStore((s) => s.bumpCartLine)
   const setCartLineDiscount = useStore((s) => s.setCartLineDiscount)
   const removeCartLine = useStore((s) => s.removeCartLine)
+  const flash = useStore((s) => s.flash)
+  const onHand = useStore((s) => s.inventory[l.sku]?.[s.branch] || 0)
+  const atCeiling = l.qty >= onHand
+  const bump = (d: number) => { if (!bumpCartLine(l.sku, d)) flash(t.noStock) }
   const [showMore, setShowMore] = useState(false)
 
   const S = compact ? 44 : 34
@@ -42,11 +46,11 @@ export function CartLineRow({ l, p, v, compact }: { l: CartLine; p: Product; v: 
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 'none' }}>
           <Button variant="secondary" icon danger={last} style={{ width: S, height: S, minWidth: S, minHeight: S }}
-            aria-label={last ? t.removeLine : '−'} onClick={() => bumpCartLine(l.sku, -1)}>
+            aria-label={last ? t.removeLine : '−'} onClick={() => bump(-1)}>
             {last ? <Trash /> : <Minus />}
           </Button>
           <span style={{ minWidth: compact ? 34 : 24, textAlign: 'center', fontSize: compact ? 17 : 15.5 }}>{l.qty}</span>
-          <Button variant="secondary" icon style={{ width: S, height: S, minWidth: S, minHeight: S }} aria-label="+" onClick={() => bumpCartLine(l.sku, 1)}>
+          <Button variant="secondary" icon style={{ width: S, height: S, minWidth: S, minHeight: S }} aria-label="+" disabled={atCeiling} title={atCeiling ? t.noStock : undefined} onClick={() => bump(1)}>
             <Plus />
           </Button>
         </div>

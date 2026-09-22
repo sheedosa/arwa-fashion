@@ -18,3 +18,20 @@ export function saleCost(sale: Pick<Sale, 'lines'>, productForSku: (sku: string)
     return a + l.qty * (p?.cost ?? 0)
   }, 0)
 }
+
+/**
+ * Change due, in the currency whose tender produced the overpayment: if the dinars
+ * handed over are at least as large as the excess, change goes back in dinars (whole
+ * dinars — there are no smaller notes); otherwise the excess came from the dollars.
+ * Returns null when nothing (or less than a cent / a dinar) is owed back.
+ */
+export function computeChange(total: number, payUsd: number, payLyd: number, fxRate: number): { currency: 'USD' | 'LYD'; amount: number } | null {
+  const over = payUsd + payLyd / fxRate - total
+  if (over <= 0.005) return null
+  if (payLyd / fxRate >= over - 0.005) {
+    const lyd = Math.round(over * fxRate)
+    return lyd > 0 ? { currency: 'LYD', amount: lyd } : null
+  }
+  const usd = Math.round(over * 100) / 100
+  return usd > 0 ? { currency: 'USD', amount: usd } : null
+}
